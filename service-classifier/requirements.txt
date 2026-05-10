@@ -1,0 +1,10 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+redis==5.0.8
+pydantic==2.9.2
+python-dotenv==1.0.1
+torch==2.2.2
+transformers==4.40.0
+scikit-learn==1.4.2
+numpy==1.26.4
+grievance-schema @ file:///shared-schema

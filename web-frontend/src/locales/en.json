@@ -1,0 +1,74 @@
+{
+  "appName": "Shikayat Saathi",
+  "tagline": "Your grievance, our responsibility",
+  "header": {
+    "language": "Language",
+    "voice": "Voice",
+    "helpline": "Helpline",
+    "user": "User"
+  },
+  "leftPanel": {
+    "title": "My Complaints",
+    "newComplaint": "New Complaint",
+    "noComplaints": "No complaints yet. Start a new one below!",
+    "active": "Active",
+    "resolved": "Resolved",
+    "pending": "Pending"
+  },
+  "chat": {
+    "title": "Chat",
+    "placeholder": "Type your problem...",
+    "send": "Send",
+    "voiceHint": "Hold to speak",
+    "openMap": "Pin Location on Map",
+    "welcomeTitle": "Welcome",
+    "welcomeBody": "Tell me your problem in any language. I'll help register it with the right department."
+  },
+  "rightPanel": {
+    "title": "Complaint Details",
+    "noActiveComplaint": "Start a complaint to see live progress here.",
+    "pipeline": "Pipeline",
+    "extracted": "Extracted Information",
+    "classified": "Classification",
+    "status": "Status",
+    "location": "Location",
+    "department": "Department",
+    "priority": "Priority",
+    "sentiment": "Tone",
+    "confidence": "Confidence",
+    "portal": "Portal",
+    "ticket": "Ticket ID",
+    "estimatedResponse": "You'll get an update in 7-10 days"
+  },
+  "stages": {
+    "stage_0_chat": "Conversation",
+    "stage_1_intake": "Location Confirmed",
+    "stage_2_nlu": "Understanding",
+    "stage_3_classify": "Classification",
+    "stage_4_tier3": "Deep Analysis",
+    "stage_5_route": "Routing to Dept.",
+    "stage_7_dedup": "Duplicate Check",
+    "stage_8_submit": "Submitted to Portal",
+    "stage_10_status": "Tracking"
+  },
+  "map": {
+    "title": "Pin Your Location",
+    "instruction": "Drag the marker or tap on the map. Use GPS for current location.",
+    "useGps": "Use My Location",
+    "confirm": "Confirm Location",
+    "cancel": "Cancel"
+  },
+  "priority": {
+    "Low": "Low",
+    "Med": "Medium",
+    "High": "High",
+    "Critical": "Critical"
+  },
+  "sentiment": {
+    "Neutral": "Neutral",
+    "Frustrated": "Frustrated",
+    "Distressed": "Distressed"
+  },
+  "trustBadge": "Verified Government Service",
+  "help": "Help"
+}

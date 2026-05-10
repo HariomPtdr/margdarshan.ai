@@ -1,0 +1,74 @@
+{
+  "appName": "शिकायत साथी",
+  "tagline": "आपकी शिकायत, हमारी ज़िम्मेदारी",
+  "header": {
+    "language": "भाषा",
+    "voice": "आवाज़",
+    "helpline": "हेल्पलाइन",
+    "user": "उपयोगकर्ता"
+  },
+  "leftPanel": {
+    "title": "मेरी शिकायतें",
+    "newComplaint": "नई शिकायत",
+    "noComplaints": "अभी कोई शिकायत नहीं। नीचे नई शुरू करें!",
+    "active": "सक्रिय",
+    "resolved": "हल हो गई",
+    "pending": "लंबित"
+  },
+  "chat": {
+    "title": "बातचीत",
+    "placeholder": "अपनी समस्या लिखें...",
+    "send": "भेजें",
+    "voiceHint": "बोलने के लिए दबाए रखें",
+    "openMap": "मानचित्र पर स्थान पिन करें",
+    "welcomeTitle": "नमस्ते",
+    "welcomeBody": "अपनी समस्या किसी भी भाषा में बताएं। मैं सही विभाग तक शिकायत पहुँचाने में मदद करूँगा।"
+  },
+  "rightPanel": {
+    "title": "शिकायत विवरण",
+    "noActiveComplaint": "लाइव प्रगति देखने के लिए शिकायत शुरू करें।",
+    "pipeline": "प्रगति",
+    "extracted": "निकाली गई जानकारी",
+    "classified": "वर्गीकरण",
+    "status": "स्थिति",
+    "location": "स्थान",
+    "department": "विभाग",
+    "priority": "प्राथमिकता",
+    "sentiment": "भाव",
+    "confidence": "विश्वास",
+    "portal": "पोर्टल",
+    "ticket": "टिकट संख्या",
+    "estimatedResponse": "7-10 दिन में जवाब मिलेगा"
+  },
+  "stages": {
+    "stage_0_chat": "बातचीत",
+    "stage_1_intake": "स्थान पुष्टि",
+    "stage_2_nlu": "समझ रहे हैं",
+    "stage_3_classify": "वर्गीकरण",
+    "stage_4_tier3": "गहन विश्लेषण",
+    "stage_5_route": "विभाग को भेजा",
+    "stage_7_dedup": "डुप्लिकेट जाँच",
+    "stage_8_submit": "पोर्टल पर जमा",
+    "stage_10_status": "ट्रैकिंग"
+  },
+  "map": {
+    "title": "अपना स्थान पिन करें",
+    "instruction": "मार्कर खींचें या मानचित्र पर टैप करें। वर्तमान स्थान के लिए GPS का उपयोग करें।",
+    "useGps": "मेरा स्थान उपयोग करें",
+    "confirm": "स्थान पुष्टि करें",
+    "cancel": "रद्द करें"
+  },
+  "priority": {
+    "Low": "कम",
+    "Med": "मध्यम",
+    "High": "उच्च",
+    "Critical": "गंभीर"
+  },
+  "sentiment": {
+    "Neutral": "तटस्थ",
+    "Frustrated": "परेशान",
+    "Distressed": "व्याकुल"
+  },
+  "trustBadge": "प्रमाणित सरकारी सेवा",
+  "help": "मदद"
+}

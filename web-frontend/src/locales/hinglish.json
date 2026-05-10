@@ -1,0 +1,74 @@
+{
+  "appName": "Shikayat Saathi",
+  "tagline": "Aapki shikayat, hamari zimmedari",
+  "header": {
+    "language": "Bhasha",
+    "voice": "Awaaz",
+    "helpline": "Helpline",
+    "user": "User"
+  },
+  "leftPanel": {
+    "title": "Meri Shikayat-ein",
+    "newComplaint": "Nayi Shikayat",
+    "noComplaints": "Abhi koi shikayat nahi. Niche se nayi shuru karein!",
+    "active": "Active",
+    "resolved": "Solved",
+    "pending": "Pending"
+  },
+  "chat": {
+    "title": "Baat-cheet",
+    "placeholder": "Apni samasya likhein...",
+    "send": "Bhejein",
+    "voiceHint": "Bolne ke liye dabaye rakhein",
+    "openMap": "Map par location pin karein",
+    "welcomeTitle": "Namaste",
+    "welcomeBody": "Apni samasya kisi bhi bhasha mein batayein. Main sahi vibhag tak shikayat pahunchane mein madad karunga."
+  },
+  "rightPanel": {
+    "title": "Shikayat Details",
+    "noActiveComplaint": "Live progress dekhne ke liye shikayat shuru karein.",
+    "pipeline": "Pipeline",
+    "extracted": "Nikali gayi Jaankari",
+    "classified": "Classification",
+    "status": "Status",
+    "location": "Sthan",
+    "department": "Vibhag",
+    "priority": "Praathmikta",
+    "sentiment": "Bhav",
+    "confidence": "Bharosa",
+    "portal": "Portal",
+    "ticket": "Ticket ID",
+    "estimatedResponse": "7-10 din mein jawab milega"
+  },
+  "stages": {
+    "stage_0_chat": "Baat-cheet",
+    "stage_1_intake": "Location confirm",
+    "stage_2_nlu": "Samasya samjhi",
+    "stage_3_classify": "Classification",
+    "stage_4_tier3": "Gehra vishleshan",
+    "stage_5_route": "Sahi vibhag tak",
+    "stage_7_dedup": "Duplicate check",
+    "stage_8_submit": "Portal par bhej diya",
+    "stage_10_status": "Tracking"
+  },
+  "map": {
+    "title": "Apna Sthan Pin Karein",
+    "instruction": "Marker khinchein ya map par tap karein. Current location ke liye GPS use karein.",
+    "useGps": "Meri Location Use Karein",
+    "confirm": "Location Confirm",
+    "cancel": "Cancel"
+  },
+  "priority": {
+    "Low": "Kam",
+    "Med": "Madhyam",
+    "High": "Tej",
+    "Critical": "Atyant Tej"
+  },
+  "sentiment": {
+    "Neutral": "Tatastha",
+    "Frustrated": "Pareshan",
+    "Distressed": "Vyakul"
+  },
+  "trustBadge": "Pramanit Sarkari Seva",
+  "help": "Madad"
+}

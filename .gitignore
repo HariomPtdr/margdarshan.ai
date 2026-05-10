@@ -1,0 +1,31 @@
+# Secrets — never commit
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+/tmp/
+
+# Large ML artifacts — embeddings cache stays local
+service-classifier/model/embeddings_cache.npy
+
+# Docker build cache
+.docker/
+
+# IDE
+.vscode/
+.idea/
