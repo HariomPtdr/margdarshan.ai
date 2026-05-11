@@ -1,4 +1,4 @@
-# Shikayat Saathi — Multilingual Grievance Redressal System
+# Margdarshan.ai — Multilingual Grievance Redressal System
 
 BGI Hackathon 2026 · Team: Merge Conflict (ID 2515) · Problem: BT1P1
 

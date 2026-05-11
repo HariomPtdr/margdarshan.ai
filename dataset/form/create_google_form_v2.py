@@ -1,5 +1,5 @@
 """
-create_google_form_v2.py  —  Shikayat Saathi dataset form (single page, focused fields)
+create_google_form_v2.py  —  Margdarshan.ai dataset form (single page, focused fields)
 Run:  source venv/bin/activate && python create_google_form_v2.py
 """
 
@@ -30,7 +30,7 @@ def get_credentials():
     return creds
 
 # ── Data ──────────────────────────────────────────────────────────────────────
-FORM_TITLE = "Shikayat Saathi — Complaint Dataset"
+FORM_TITLE = "Margdarshan.ai — Complaint Dataset"
 
 DESCRIPTION = (
     "Help us build an AI that routes citizen complaints automatically. "

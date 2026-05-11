@@ -12,7 +12,7 @@ import type {
 
 const GATEWAY = import.meta.env.VITE_GATEWAY_URL || "http://localhost:8000";
 
-const TOKEN_KEY = "shikayat_token";
+const TOKEN_KEY = "margdarshan_token";
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
