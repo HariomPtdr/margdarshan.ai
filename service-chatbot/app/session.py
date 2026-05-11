@@ -22,6 +22,7 @@ class Session:
         language_preference: Optional[str] = None,
         field_collection: Optional[dict] = None,
         pending_notification: Optional[str] = None,
+        slots: Optional[dict] = None,          # structured complaint data (source of truth)
     ):
         self.user_id = user_id
         self.session_id = session_id or str(uuid.uuid4())
@@ -35,6 +36,7 @@ class Session:
         self.field_collection: dict = field_collection or {}
         # pre-written message delivered on the user's very next turn, then cleared
         self.pending_notification: Optional[str] = pending_notification
+        self.slots: dict = slots or {}          # structured slot tracking
         self.last_active = datetime.utcnow().isoformat()
 
     def to_dict(self) -> dict:
@@ -48,6 +50,7 @@ class Session:
             "language_preference": self.language_preference,
             "field_collection": self.field_collection,
             "pending_notification": self.pending_notification,
+            "slots": self.slots,
             "last_active": self.last_active,
         }
 
@@ -63,6 +66,7 @@ class Session:
             language_preference=data.get("language_preference"),
             field_collection=data.get("field_collection") or {},
             pending_notification=data.get("pending_notification"),
+            slots=data.get("slots") or {},
         )
         s.last_active = data.get("last_active", s.last_active)
         return s

@@ -1,4 +1,4 @@
-import { HelpCircle, LayoutDashboard } from "lucide-react";
+import { HelpCircle, LogOut } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { v4 as uuid } from "uuid";
@@ -11,7 +11,7 @@ import { RightPanel } from "./components/RightPanel";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { useChat } from "./hooks/useChat";
 import { usePipeline, type PipelineState } from "./hooks/usePipeline";
-import { attachLocation, getComplaint, getComplaintMessages, listComplaints, resetSession, restoreSession } from "./lib/api";
+import { adminStats, attachLocation, getComplaint, getComplaintMessages, listComplaints, resetSession, restoreSession } from "./lib/api";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
@@ -28,10 +28,20 @@ export default function App() {
 function Root() {
   const { user, loading } = useAuth();
   const [authView, setAuthView] = useState<"login" | "signup">("login");
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+
+  // After login, check if this account has admin access
+  useEffect(() => {
+    if (!user) { setIsAdmin(null); return; }
+    adminStats()
+      .then(() => setIsAdmin(true))
+      .catch(() => setIsAdmin(false));
+  }, [user]);
 
   if (loading) {
     return <div className="h-full flex items-center justify-center text-gray-500">Loading...</div>;
   }
+
   if (!user) {
     return authView === "login" ? (
       <LoginPage onSwitchToSignup={() => setAuthView("signup")} />
@@ -39,12 +49,45 @@ function Root() {
       <SignupPage onSwitchToLogin={() => setAuthView("login")} />
     );
   }
+
+  // Still checking admin role
+  if (isAdmin === null) {
+    return <div className="h-full flex items-center justify-center text-gray-500">Loading...</div>;
+  }
+
+  // Admin → department dashboard, citizen → main app
+  if (isAdmin) {
+    return <AdminDashboard />;
+  }
+
   return <MainApp />;
+}
+
+function AdminDashboard() {
+  const { logout } = useAuth();
+  return (
+    <div className="h-full flex flex-col" style={{ background:"linear-gradient(135deg, #EDF2F7 0%, #F0F4F9 50%, #EBF0F7 100%)" }}>
+      <div style={{ background:"#202A36", borderBottom:"1px solid rgba(0,0,0,0.1)", color:"white", padding:"10px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0, fontFamily:"'Inter',sans-serif" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div>
+            <p style={{ margin:0, fontSize:"0.85rem", fontWeight:600, letterSpacing:"-0.01em" }}>Margdarshan.ai</p>
+            <p style={{ margin:0, fontSize:"0.62rem", color:"rgba(255,255,255,0.45)", fontWeight:500, letterSpacing:"0.03em" }}>DEPARTMENT DASHBOARD</p>
+          </div>
+        </div>
+        <button onClick={logout}
+          style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:999, background:"rgba(255,255,255,0.1)", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.8)", fontSize:"0.75rem", fontWeight:500, cursor:"pointer", fontFamily:"'Inter',sans-serif" }}>
+          <LogOut size={13} /> Sign out
+        </button>
+      </div>
+      <div className="flex-1 overflow-hidden">
+        <DashboardPage onBack={() => {}} hideBackButton />
+      </div>
+    </div>
+  );
 }
 
 function MainApp() {
   const { t } = useTranslation();
-  const [showDashboard, setShowDashboard] = useState(false);
   const chat = useChat();
   const [seedByComplaint, setSeedByComplaint] = useState<Record<string, PipelineState>>({});
   const seed = chat.activeComplaintId ? seedByComplaint[chat.activeComplaintId] : undefined;
@@ -216,23 +259,11 @@ function MainApp() {
     [chat],
   );
 
-  if (showDashboard) {
-    return <DashboardPage onBack={() => setShowDashboard(false)} />;
-  }
-
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col" style={{ background:"linear-gradient(135deg, #EDF2F7 0%, #F0F4F9 50%, #EBF0F7 100%)" }}>
       <Header />
-      <div className="bg-gray-50 border-b px-4 py-1 flex justify-end">
-        <button
-          onClick={() => setShowDashboard(true)}
-          className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 transition-colors py-1"
-        >
-          <LayoutDashboard size={13} /> Government Dashboard
-        </button>
-      </div>
-
-      <main className="flex-1 grid grid-cols-12 overflow-hidden">
+      <main className="flex-1 grid grid-cols-12 overflow-hidden" style={{ gap:0 }}>
+        {/* Left panel */}
         <div className="col-span-2 hidden md:block min-w-[180px]">
           <LeftPanel
             complaints={complaints}
@@ -242,7 +273,8 @@ function MainApp() {
           />
         </div>
 
-        <div className="col-span-12 md:col-span-6 lg:col-span-6 overflow-hidden">
+        {/* Chat */}
+        <div className="col-span-12 md:col-span-6 lg:col-span-6 overflow-hidden" style={{ borderRight:"1px solid rgba(255,255,255,0.07)" }}>
           <ChatPanel
             messages={chat.messages}
             onSend={chat.send}
@@ -252,6 +284,7 @@ function MainApp() {
           />
         </div>
 
+        {/* Right panel */}
         <div className="col-span-12 md:col-span-4 lg:col-span-4 overflow-hidden">
           <RightPanel state={pipeline} hasActiveComplaint={!!chat.activeComplaintId} />
         </div>

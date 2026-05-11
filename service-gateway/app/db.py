@@ -34,8 +34,10 @@ CREATE TABLE IF NOT EXISTS users (
   district TEXT,
   pincode TEXT,
   country TEXT DEFAULT 'India',
+  is_admin BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS complaints (
   complaint_id UUID PRIMARY KEY,
@@ -98,6 +100,21 @@ CREATE TABLE IF NOT EXISTS complaint_events (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_events_complaint ON complaint_events(complaint_id, created_at);
+
+-- Department reviewer feedback on AI classification quality.
+CREATE TABLE IF NOT EXISTS complaint_reviews (
+    id                    UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    complaint_id          UUID        NOT NULL REFERENCES complaints(complaint_id) ON DELETE CASCADE,
+    classification_correct BOOLEAN,
+    correct_department    TEXT,
+    correct_sub_category  TEXT,
+    correct_priority      TEXT,
+    sentiment_correct     BOOLEAN,
+    reviewer_notes        TEXT,
+    rating                TEXT        NOT NULL CHECK (rating IN ('positive', 'negative')),
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_reviews_complaint ON complaint_reviews(complaint_id);
 """
 
 

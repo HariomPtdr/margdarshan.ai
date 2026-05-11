@@ -4,3 +4,4 @@ redis==5.0.8
 pydantic==2.9.2
 python-dotenv==1.0.1
 grievance-schema @ file:///shared-schema
+playwright==1.40.0

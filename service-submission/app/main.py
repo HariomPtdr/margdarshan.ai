@@ -50,6 +50,7 @@ async def list_adapters():
 class SubmitRequest(BaseModel):
     complaint_id: str
     portal_id: str
+    portal_name: str = ""       # used by generic adapter for ticket ID prefix
     portal_fields: dict         # collected by Stage 6 field collection
     uco_meta: dict = {}         # complaint_text, department, district, user_name, etc.
 
@@ -58,7 +59,8 @@ class SubmitRequest(BaseModel):
 async def submit(req: SubmitRequest):
     await _publish(req.complaint_id, "started", {"portal_id": req.portal_id})
 
-    adapter = get_adapter(req.portal_id)
+    portal_name = req.portal_name or req.uco_meta.get("portal_name", "")
+    adapter = get_adapter(req.portal_id, portal_name=portal_name)
     logger.info("submit: complaint=%s portal=%s adapter=%s",
                 req.complaint_id, req.portal_id, type(adapter).__name__)
 

@@ -1,18 +1,21 @@
-"""service-chatbot — Stage 0 Conversation Manager + Stage 6 Field Collector.
+"""service-chatbot — Layer 1 thin interface + Stage 6 Field Collector.
 
-POST /api/v1/chat                       — main chat entry point
+POST /api/v1/chat                       — main chat entry point (proxies to NLU Layer 2)
 POST /api/v1/field-collection/start     — gateway calls this after dedup to arm field collection
 POST /api/v1/session/notify             — gateway calls this to set a pending notification
 DELETE /api/v1/session/{user_id}        — reset session
 GET  /api/v1/session/{user_id}          — debug, returns current session
+POST /api/v1/session/restore            — restore session from DB messages
 """
 
 import json
 import logging
+import os
 import uuid
 from datetime import datetime
 from typing import Optional
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -24,11 +27,16 @@ from .config import config
 from .session import Session, store
 from .validators import validate
 
+NLU_URL = os.getenv("NLU_URL", "http://service-nlu:8003")
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="service-chatbot", version="2.0.0")
+app = FastAPI(title="service-chatbot", version="3.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# Shared async HTTP client for NLU calls
+_http = httpx.AsyncClient()
 
 
 @app.get("/healthz")
@@ -217,7 +225,7 @@ async def session_notify(req: NotifyRequest):
 # ── Main chat handler ──────────────────────────────────────────────────
 
 @app.post("/api/v1/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest):
+async def proxy_chat(req: ChatRequest):
     if len(req.message) > config.MAX_MESSAGE_LENGTH:
         raise HTTPException(400, "Message too long")
     if len(req.message.strip()) == 0:
@@ -284,56 +292,172 @@ async def chat(req: ChatRequest):
     if session.state == StateEnum.FIELD_COLLECTION.value and session.field_collection:
         return await _handle_field_collection(req, session)
 
-    # ── Normal intake flow ─────────────────────────────────────────────────────
-    decision = await chatbot.call(
-        history=session.history,
-        new_message=req.message,
-        language_preference=session.language_preference,
-        current_state=session.state,
-        complaint_buffer=session.complaint_buffer,
-    )
+    # ── Priority 3: post-submission queries about THIS complaint ──────────────
+    if session.state == StateEnum.SUBMITTED.value and session.complaint_id:
+        return await _handle_post_submission_query(req, session)
 
+    # ── NEW: delegate conversation management to Layer 2 (NLU) ──────────────
+    try:
+        nlu_resp = await _http.post(
+            f"{NLU_URL}/api/v1/converse",
+            json={
+                "user_id": req.user_id,
+                "message": req.message,
+                "session_id": req.session_id,
+                "language_preference": req.language_preference or session.language_preference or "hinglish",
+            },
+            timeout=15.0,
+        )
+        nlu_resp.raise_for_status()
+        nlu_data = nlu_resp.json()
+    except httpx.HTTPError as exc:
+        logger.error("NLU service error: %s", exc)
+        raise HTTPException(502, "Conversation service unavailable. Please try again.")
+
+    reply = nlu_data["reply"]
+    is_complete = nlu_data.get("is_complete", False)
+    needs_location_pin = nlu_data.get("needs_location_pin", False)
+    complaint_buffer = nlu_data.get("complaint_buffer", "")
+    language = nlu_data.get("language", "hinglish")
+    session_id = nlu_data.get("session_id") or req.session_id or session.session_id
+
+    # Update chatbot session (for history and field_collection tracking)
     session.history.append({"role": "user", "content": req.message})
-    session.history.append({"role": "assistant", "content": decision["reply_to_user"]})
-    session.state = decision["next_state"]
-    session.complaint_buffer = decision["complaint_buffer"]
+    session.history.append({"role": "assistant", "content": reply})
+    session.complaint_buffer = complaint_buffer
+    session.language_preference = language
 
     complaint_id = session.complaint_id
     pipeline_triggered = False
 
-    if decision["intent"] == IntentEnum.ABUSE.value:
-        await _log_abuse(req.user_id, req.message)
-
-    elif decision["ready_for_pipeline"]:
-        is_new_intent = decision["intent"] == IntentEnum.COMPLAINT_NEW.value
-        if (is_new_intent and decision.get("is_new_complaint")) or not complaint_id:
+    if is_complete:
+        # Layer 2 says conversation is complete — generate complaint_id.
+        # Do NOT publish stage_0_chat here. The GATEWAY publishes it AFTER inserting
+        # the complaint row to DB, preventing the race condition where pipeline events
+        # arrive before the DB row exists (causing all UPDATE queries to hit 0 rows).
+        if not complaint_id:
             complaint_id = str(uuid.uuid4())
             session.complaint_id = complaint_id
-
-        await _publish_pipeline_event(
-            complaint_id=complaint_id,
-            stage=StageEnum.STAGE_0_CHAT,
-            status="completed",
-            payload={
-                "user_id": req.user_id,
-                "session_id": session.session_id,
-                "complaint_buffer": decision["complaint_buffer"],
-                "language": decision["language_detected"],
-                "needs_location_pin": decision["needs_location_pin"],
-            },
-        )
+        session.state = "COLLECTING"
         pipeline_triggered = True
+    else:
+        # Map NLU state to schema state
+        state_str = nlu_data.get("state", "IDLE")
+        state_map = {
+            "IDLE": "IDLE",
+            "INTENT_DISCOVERY": "COLLECTING",
+            "CONTEXT_SUB": "COLLECTING",
+            "CONTEXT_SCOPE": "COLLECTING",
+            "CLARIFICATION": "COLLECTING",
+            "LOCATION_CAPTURE": "AWAITING_LOCATION",
+            "COLLECTING": "COLLECTING",
+        }
+        session.state = state_map.get(state_str, "COLLECTING")
 
     await store.save(session)
 
+    schema_state_map = {
+        "IDLE": StateEnum.IDLE,
+        "COLLECTING": StateEnum.COLLECTING,
+        "AWAITING_LOCATION": StateEnum.AWAITING_LOCATION,
+        "FIELD_COLLECTION": StateEnum.FIELD_COLLECTION,
+        "SUBMITTED": StateEnum.SUBMITTED,
+    }
+    schema_state = schema_state_map.get(session.state, StateEnum.COLLECTING)
+
     return ChatResponse(
-        reply=decision["reply_to_user"],
-        session_id=session.session_id,
+        reply=reply,
+        session_id=session_id,
         complaint_id=complaint_id,
-        intent=IntentEnum(decision["intent"]),
-        state=StateEnum(decision["next_state"]),
-        needs_location_pin=decision["needs_location_pin"],
+        intent=IntentEnum.COMPLAINT_NEW if is_complete else IntentEnum.COMPLAINT_CONTINUE,
+        state=schema_state,
+        needs_location_pin=needs_location_pin,
         pipeline_triggered=pipeline_triggered,
+        complaint_buffer=complaint_buffer if is_complete else "",
+        language=language,
+    )
+
+
+# ── Post-submission query handler ──────────────────────────────────────
+
+async def _handle_post_submission_query(req: ChatRequest, session: Session) -> ChatResponse:
+    """Handle user queries AFTER a complaint is submitted.
+
+    The complaint is already filed. The user is asking about status, ticket,
+    next steps, etc. We answer based on the complaint context stored in session.
+    We do NOT re-route to NLU (which would start a new complaint flow).
+    """
+    lang = session.language_preference or "hinglish"
+    msg = req.message.strip().lower()
+    cid = session.complaint_id
+
+    # Get complaint context from session history / buffer
+    dept = ""
+    ticket = ""
+    fc = session.field_collection or {}
+    portal_name = fc.get("portal_name", "")
+
+    # Try to find ticket from history
+    for h in reversed(session.history):
+        if "ticket" in h.get("content", "").lower() or "/" in h.get("content", ""):
+            # basic heuristic — ticket lines contain /
+            parts = [w for w in h["content"].split() if "/" in w and len(w) > 5]
+            if parts:
+                ticket = parts[0]
+                break
+
+    # Build context for Claude
+    complaint_context = f"Complaint ID: {cid}\nPortal: {portal_name}\nTicket: {ticket or 'being processed'}\nComplaint buffer: {session.complaint_buffer[:300]}"
+
+    # Use Claude Haiku to answer the query in complaint context
+    try:
+        resp = await chatbot.client.messages.create(
+            model=config.CLAUDE_MODEL,
+            max_tokens=300,
+            system=f"""You are Shikayat Saathi, an Indian govt complaint assistant.
+The user has already SUBMITTED a complaint. Answer their query about their complaint.
+DO NOT start a new complaint flow. ONLY answer questions about the submitted complaint.
+
+Complaint context:
+{complaint_context}
+
+Language: {lang}. Reply in same language as user (Hindi/English/Hinglish).
+Keep response short (2-3 sentences max).
+Common queries to handle:
+- Status → say ticket is submitted and being processed, share ticket ID if available
+- Ticket ID → share the ticket ID
+- Next steps → explain that the dept will respond in 7-10 working days
+- How to track → explain they'll get an update here
+- General frustration → empathize, confirm complaint is registered
+""",
+            messages=[{"role": "user", "content": req.message}],
+        )
+        reply = resp.content[0].text.strip()
+    except Exception:
+        # Fallback reply
+        if any(w in msg for w in ["status", "kya hua", "update", "kab"]):
+            if lang == "hi":
+                reply = f"आपकी शिकायत ({ticket or cid[:8]+'...'}) दर्ज हो गई है और संबंधित विभाग को भेज दी गई है। 7-10 कार्य दिवसों में अपडेट मिलेगा।"
+            elif lang == "en":
+                reply = f"Your complaint ({ticket or cid[:8]+'...'}) has been submitted to {portal_name}. You will receive an update within 7-10 working days."
+            else:
+                reply = f"Aapki shikayat ({ticket or cid[:8]+'...'}) {portal_name} ko bhej di gayi hai. 7-10 kaarya diwason mein update milega."
+        else:
+            if lang == "hinglish":
+                reply = f"Aapki shikayat already submit ho chuki hai (Ticket: {ticket or 'processing'}). Koi aur sawal ho toh batayein. Naya complaint ke liye 'New Complaint' button use karein."
+            else:
+                reply = f"Your complaint is already submitted (Ticket: {ticket or 'processing'}). Use 'New Complaint' button for a new issue."
+
+    session.history.append({"role": "user", "content": req.message})
+    session.history.append({"role": "assistant", "content": reply})
+    await store.save(session)
+
+    return ChatResponse(
+        reply=reply,
+        session_id=session.session_id,
+        complaint_id=cid,
+        intent=IntentEnum.STATUS_CHECK,
+        state=StateEnum.SUBMITTED,
     )
 
 

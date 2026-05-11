@@ -30,8 +30,9 @@ async def log_event(
                 complaint_id,
             )
 
-            now = datetime.now(timezone.utc).isoformat()
-            raw = f"{prev_hash or ''}{event_type}{json.dumps(details, sort_keys=True)}{now}"
+            now_dt = datetime.now(timezone.utc)
+            now_iso = now_dt.isoformat()
+            raw = f"{prev_hash or ''}{event_type}{json.dumps(details, sort_keys=True)}{now_iso}"
             event_hash = hashlib.sha256(raw.encode()).hexdigest()
 
             await conn.execute(
@@ -41,7 +42,7 @@ async def log_event(
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                 """,
                 complaint_id, event_type, actor,
-                json.dumps(details), prev_hash, event_hash, now,
+                json.dumps(details), prev_hash, event_hash, now_dt,  # pass datetime object, not string
             )
             return event_hash
     except Exception as e:

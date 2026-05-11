@@ -43,6 +43,7 @@ DOMAIN_TO_DEPT = {
     "ration":      ("FOOD_RATION",        "Ration card or FPS issue"),
     "cyber":       ("CYBER_CRIME",        "Online fraud"),
     "housing":     ("HOUSING_URBAN",      "Property or civic issue"),
+    "safety":      ("POLICE",            "Public nuisance / noise / encroachment"),
 }
 
 app = FastAPI(title="service-classifier", version="2.0.0")
@@ -55,7 +56,10 @@ _redis: Optional[redis_async.Redis] = None
 async def startup():
     global _redis
     _redis = redis_async.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
-    predictor.load()
+    if os.getenv("USE_RULE_BASED_CLASSIFIER", "false").lower() != "true":
+        predictor.load()
+    else:
+        logger.info("USE_RULE_BASED_CLASSIFIER=true — MuRIL disabled, using rule-based only")
 
 
 @app.get("/healthz")
@@ -74,6 +78,7 @@ class ClassifyRequest(BaseModel):
     domain_hints: list[str] = []
     keywords: list[str] = []
     language: Optional[str] = "en"
+    layer2_category: Optional[str] = ""   # confirmed category from Layer 2 conversation
 
 
 @app.post("/api/v1/classify")
@@ -86,6 +91,47 @@ async def classify(req: ClassifyRequest):
 
 def _run_classifier(req: ClassifyRequest) -> dict:
     text = (req.text_normalized or req.text_for_classifier or "").strip()
+
+    # Layer 2 confirmed category takes highest priority — the user explicitly
+    # selected/described their complaint type through guided conversation.
+    # This prevents NLU substring bugs (e.g. 'ration' matching inside 'duration')
+    # from overriding the user's confirmed intent.
+    if req.layer2_category:
+        cat_to_tag = {
+            "Electricity": "ELECTRICITY",
+            "Water Supply": "WATER_SUPPLY",
+            "Roads & Transportation": "ROADS",
+            "Waste Management": "SANITATION",
+            "Health & Family Welfare": "HEALTH",
+            "Police": "POLICE",
+            "Education (Higher / School)": "EDUCATION_SCHOOL",
+            "Housing & Urban Affairs": "HOUSING_URBAN",
+            "Agriculture & Farmers Welfare": "AGRICULTURE",
+            "Banking (DFS)": "BANKING",
+            "Aadhaar (UIDAI)": "AADHAAR",
+            "Income Tax (CBDT)": "INCOME_TAX",
+            "GST (CBIC)": "GST",
+            "EPFO": "EPF_ESIC",
+            "Insurance (DFS)": "INSURANCE",
+            "Passport (MEA)": "PASSPORT",
+            "Pension & Pensioners Welfare": "PENSION_SOCIAL",
+            "Petroleum & LPG": "PETROLEUM_LPG",
+            "Postal": "POSTAL",
+            "Public Distribution (PDS)": "FOOD_RATION",
+            "Public Safety & Encroachment": "POLICE",  # maps to police/safety dept tag
+            "RTO / State Transport": "TRANSPORT_VEHICLE",
+            "Railways": "RAILWAY",
+            "Telecom": "TELECOM",
+        }
+        dept_tag = cat_to_tag.get(req.layer2_category)
+        if dept_tag:
+            # Still run rule-based for priority/sentiment, just override department
+            rule = _rule_based(req)
+            rule["department"] = dept_tag
+            rule["confidence"] = 0.92  # high confidence since user confirmed
+            rule["needs_clarification"] = False
+            rule["model"] = "layer2_confirmed"
+            return rule
 
     # Try MuRIL first.
     if predictor.ready and text:

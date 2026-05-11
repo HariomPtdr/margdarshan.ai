@@ -17,14 +17,27 @@ DOMAIN_DICT = {
     "tap": "water", "pipe": "water", "leak": "water",
     "supply": "water", "tanker": "water", "नल": "water",
 
-    # Roads
+    # Roads — only unambiguous road-specific words (NOT "gali" which means locality)
     "sadak": "roads", "सड़क": "roads", "road": "roads",
     "pothole": "roads", "गड्ढा": "roads", "gaddha": "roads",
-    "highway": "roads", "footpath": "roads",
+    "highway": "roads", "footpath": "roads", "drainage": "roads",
+    "nali": "roads",
 
-    # Waste
+    # Waste / Sanitation (only actual garbage/filth)
     "kachra": "waste", "कचरा": "waste", "garbage": "waste",
     "trash": "waste", "dustbin": "waste",
+    "stray": "waste", "mosquito": "waste", "machhar": "waste",
+    "sewage": "waste", "safai": "waste",
+
+    # Public Safety & Encroachment — noise, nuisance, encroachment
+    "shor": "safety", "शोर": "safety", "noise": "safety",
+    "awaaz": "safety", "आवाज़": "safety",
+    "nuisance": "safety", "pradushan": "safety", "प्रदूषण": "safety",
+    "pollution": "safety",
+    "gaana": "safety", "गाना": "safety", "music": "safety",
+    "loudspeaker": "safety", "dj": "safety", "dhol": "safety",
+    "halla": "safety", "shorgul": "safety", "disturbance": "safety",
+    "encroachment": "safety", "kabza": "safety", "illegal": "safety",
 
     # Police
     "police": "police", "FIR": "police", "fir": "police",
@@ -79,13 +92,24 @@ DOMAIN_DICT = {
 }
 
 
+import re as _re
+
 def extract_keywords(text: str) -> tuple[list[str], list[str]]:
-    """Returns (matched_keywords, domain_hints)."""
+    """Returns (matched_keywords, domain_hints).
+    Uses word-boundary matching to prevent 'ration' matching inside 'duration'.
+    """
     matched: list[str] = []
     domains: set[str] = set()
     text_lower = text.lower()
     for word, domain in DOMAIN_DICT.items():
-        if word in text_lower:
-            matched.append(word)
-            domains.add(domain)
+        # Use word boundary for single words; substring match is fine for multi-word phrases
+        if " " in word:
+            if word in text_lower:
+                matched.append(word)
+                domains.add(domain)
+        else:
+            # \b ensures we don't match partial words (e.g. 'ration' inside 'duration')
+            if _re.search(r'\b' + _re.escape(word) + r'\b', text_lower):
+                matched.append(word)
+                domains.add(domain)
     return matched, sorted(domains)

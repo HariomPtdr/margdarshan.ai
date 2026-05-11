@@ -41,6 +41,105 @@ app = FastAPI(title="service-gateway", version="2.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(admin_router)
 
+
+# ── Demo Trace endpoint — shows full API exchange for a complaint ─────────────
+
+@app.get("/api/v1/demo/trace/{complaint_id}")
+async def demo_trace(complaint_id: str, _uid: str = Depends(auth.get_current_user_id)):
+    """Returns the full plug-and-play API trace for demo purposes.
+    Shows: what was sent to portal, what came back, status updates, adapter used.
+    """
+    async with db.pool().acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT complaint_id, department, portal_id, ticket_id, status, pipeline_data "
+            "FROM complaints WHERE complaint_id = $1",
+            complaint_id,
+        )
+    if not row:
+        raise HTTPException(404, "Complaint not found")
+
+    pd = row["pipeline_data"] or {}
+    portal_id   = row["portal_id"] or ""
+    portal_fields = pd.get("portal_fields", {})
+    submission  = pd.get("submission", {})
+    routing     = pd.get("routing", {})
+    clf         = pd.get("classification", {})
+    loc         = pd.get("location", {})
+
+    # Determine adapter name
+    adapter_map = {
+        "P001": "CPGRAMSAdapter",
+        "P002": "CPGRAMSAdapter",
+        "P031": "MPCM181Adapter",
+        "P062": "MPPKVVCLAdapter",
+        "P065": "MPPKVVCLAdapter",
+    }
+    adapter_name = adapter_map.get(portal_id, "GenericMockAdapter")
+
+    return {
+        "complaint_id": complaint_id,
+        "adapter_used": adapter_name,
+
+        # STEP 1: What our classifier decided
+        "step_1_classification": {
+            "label":       "Layer 4 — Classifier",
+            "department":  clf.get("department", ""),
+            "sub_category":clf.get("sub_category", ""),
+            "priority":    clf.get("priority", ""),
+            "confidence":  clf.get("confidence", 0),
+        },
+
+        # STEP 2: What routing found
+        "step_2_routing": {
+            "label":          "Layer 5 — Portal Routing",
+            "portal_id":      routing.get("portal_id", ""),
+            "portal_name":    routing.get("portal_name", ""),
+            "portal_level":   routing.get("jurisdiction_level", ""),
+            "portal_website": routing.get("portal_website", ""),
+            "reason":         f"Best match for {clf.get('department','')} in {loc.get('district','')}",
+        },
+
+        # STEP 3: What we SENT to the portal (the API request)
+        "step_3_api_request": {
+            "label":    "Layer 7 — What we sent to portal",
+            "method":   "POST",
+            "url":      f"{routing.get('portal_website', 'https://portal.gov.in')}/api/grievance/register",
+            "headers":  {"Authorization": "Bearer [API_KEY]", "Content-Type": "application/json"},
+            "body":     portal_fields,
+        },
+
+        # STEP 4: What the portal sent back
+        "step_4_api_response": {
+            "label":     "Portal Response",
+            "ticket_id": row["ticket_id"] or "",
+            "status":    submission.get("portal_status_raw", ""),
+            "portal_url":submission.get("portal_url", ""),
+        },
+
+        # STEP 5: Current status
+        "step_5_current_status": {
+            "label":        "Current Status",
+            "our_status":   row["status"],
+            "ticket":       row["ticket_id"] or "",
+            "next_poll":    "Tracker polls every 1h for status updates",
+        },
+
+        "audit_chain": await _get_audit_events(complaint_id),
+    }
+
+
+async def _get_audit_events(complaint_id: str) -> list:
+    try:
+        async with db.pool().acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT event_type, details, created_at FROM complaint_events "
+                "WHERE complaint_id=$1 ORDER BY created_at ASC LIMIT 20",
+                complaint_id,
+            )
+        return [{"event": r["event_type"], "at": r["created_at"].strftime("%H:%M:%S"), "details": r["details"]} for r in rows]
+    except Exception:
+        return []
+
 _http: Optional[httpx.AsyncClient] = None
 _redis: Optional[redis_async.Redis] = None
 
@@ -55,7 +154,31 @@ async def startup():
     asyncio.create_task(_orchestrator_loop())
     asyncio.create_task(_persistence_loop())
     asyncio.create_task(_feedback_loop())
+    await _seed_admin()
     logger.info("Gateway started — orchestrator + persistence + feedback loops running")
+
+
+async def _seed_admin():
+    """Create admin user from env vars if it doesn't exist yet."""
+    admin_email = os.getenv("ADMIN_EMAIL", "").strip()
+    admin_password = os.getenv("ADMIN_PASSWORD", "").strip()
+    admin_mobile = os.getenv("ADMIN_MOBILE", "9000000000").strip()
+    if not admin_email or not admin_password:
+        return
+    async with db.pool().acquire() as conn:
+        existing = await conn.fetchrow("SELECT id, is_admin FROM users WHERE email=$1", admin_email)
+        if existing:
+            if not existing["is_admin"]:
+                await conn.execute("UPDATE users SET is_admin=true WHERE email=$1", admin_email)
+                logger.info("Promoted existing user %s to admin", admin_email)
+        else:
+            pwd_hash = auth.hash_password(admin_password)
+            await conn.execute(
+                "INSERT INTO users (name, email, mobile, password_hash, is_admin) "
+                "VALUES ($1,$2,$3,$4,true)",
+                "Admin", admin_email, admin_mobile, pwd_hash,
+            )
+            logger.info("Admin account created: %s", admin_email)
 
 
 @app.on_event("shutdown")
@@ -307,13 +430,21 @@ async def proxy_chat(body: ChatRequest, user_id: str = Depends(auth.get_current_
                     cid, user_id, session_id,
                 )
 
-    # Publish stage_0_chat completed event so the pipeline UI shows the conversation step.
-    if cid:
+    # Publish stage_0_chat ONLY after the DB INSERT — this guarantees the complaint row
+    # exists before the pipeline orchestrator starts processing. Only publish when the
+    # chatbot signals pipeline_triggered (conversation complete), not on every turn.
+    if cid and resp.get("pipeline_triggered"):
         chat_event = {
             "complaint_id": cid,
             "stage": "stage_0_chat",
             "status": "completed",
-            "payload": {"intent": resp.get("intent"), "state": resp.get("state")},
+            "payload": {
+                "user_id": user_id,
+                "session_id": resp.get("session_id", ""),
+                "complaint_buffer": resp.get("complaint_buffer", ""),
+                "language": resp.get("language", "hinglish"),
+                "needs_location_pin": resp.get("needs_location_pin", False),
+            },
         }
         await _redis.publish(f"pipeline:{cid}", json.dumps(chat_event))
         await _redis.publish("pipeline:all", json.dumps(chat_event))
@@ -323,11 +454,16 @@ async def proxy_chat(body: ChatRequest, user_id: str = Depends(auth.get_current_
 
 @app.post("/api/v1/session/reset")
 async def reset_session(user_id: str = Depends(auth.get_current_user_id)):
-    """Clear the chatbot Redis session so the next message starts fresh."""
-    try:
-        await _http.delete(f"{CHATBOT_URL}/api/v1/session/{user_id}")
-    except Exception as e:
-        logger.warning(f"Session reset failed: {e}")
+    """Clear chatbot + NLU sessions so the next message starts a fresh complaint."""
+    import asyncio
+    results = await asyncio.gather(
+        _http.delete(f"{CHATBOT_URL}/api/v1/session/{user_id}"),
+        _http.delete(f"{NLU_URL}/api/v1/converse/{user_id}"),
+        return_exceptions=True,
+    )
+    for r in results:
+        if isinstance(r, Exception):
+            logger.warning("Session reset partial failure: %s", r)
     return {"status": "ok"}
 
 
@@ -450,6 +586,9 @@ async def pipeline_ws(websocket: WebSocket, complaint_id: str):
             cached = await _redis.get(stage_key)
             if cached:
                 payload = json.loads(cached)
+                # Skip incomplete submission cache (only "started" payload, no ticket yet)
+                if stage_name == "stage_8_submit" and not payload.get("portal_ticket_id"):
+                    continue
                 if payload_wrapper:
                     payload = {payload_wrapper: payload}
                 await websocket.send_text(json.dumps({
@@ -488,33 +627,54 @@ async def _orchestrator_loop():
         payload = event.get("payload", {})
 
         if stage == "stage_0_chat" and status == "completed":
-            # Skip if pipeline already ran for this complaint (restored session re-fires stage_0).
             already_classified = await _redis.get(f"complaint:{complaint_id}:classification")
-            if not already_classified:
+            awaiting_clarification = await _redis.get(f"complaint:{complaint_id}:awaiting_clarification")
+            if not already_classified or awaiting_clarification:
+                # Re-run if awaiting classifier clarification (user answered, pipeline re-fires)
+                if awaiting_clarification:
+                    await _redis.delete(f"complaint:{complaint_id}:awaiting_clarification")
+                    await _redis.delete(f"complaint:{complaint_id}:classification")
                 await _trigger_nlu(complaint_id, payload)
         elif stage == "stage_2_nlu" and status == "completed":
             await _trigger_classifier(complaint_id, payload)
         elif stage == "stage_3_classify" and status == "completed":
             if payload.get("needs_clarification"):
-                clarify_event = {
-                    "complaint_id": complaint_id,
-                    "stage": "stage_3_classify",
-                    "status": "needs_clarification",
-                    "payload": {
-                        "clarifying_question": payload.get("clarifying_question"),
-                        "top3_departments": payload.get("top3_departments", []),
-                    },
-                }
-                await _redis.publish(f"pipeline:{complaint_id}", json.dumps(clarify_event))
-                await _redis.publish("pipeline:all", json.dumps(clarify_event))
+                # Low classifier confidence — push clarifying question back to user via chatbot
+                question = payload.get("clarifying_question", "")
+                if question:
+                    clarify_count_key = f"complaint:{complaint_id}:clarify_count"
+                    count = int(await _redis.get(clarify_count_key) or 0)
+                    if count < 2:
+                        await _redis.incr(clarify_count_key)
+                        await _redis.expire(clarify_count_key, 3600)
+                        # Mark complaint as awaiting clarification so chatbot re-triggers pipeline
+                        await _redis.set(f"complaint:{complaint_id}:awaiting_clarification", "1", ex=3600)
+                        # Get user_id from DB
+                        async with db.pool().acquire() as conn:
+                            uid = await conn.fetchval(
+                                "SELECT user_id FROM complaints WHERE complaint_id=$1", complaint_id
+                            )
+                        if uid:
+                            await _http.post(
+                                f"{CHATBOT_URL}/api/v1/session/notify",
+                                json={"user_id": str(uid), "message": question},
+                                timeout=5.0,
+                            )
+                        # Broadcast clarification event to frontend
+                        await _redis.publish(f"pipeline:{complaint_id}", json.dumps({
+                            "complaint_id": complaint_id, "stage": "stage_3_classify",
+                            "status": "needs_clarification",
+                            "payload": {"clarifying_question": question},
+                        }))
+                        return  # Wait for user answer; pipeline resumes when chatbot re-fires stage_0
+                    # Max clarifications reached — proceed with current best guess
+                # No question or max attempts — fall through to routing
+            # High confidence OR max clarifications reached — proceed to routing
+            loc = await _redis.get(f"complaint:{complaint_id}:location")
+            if loc:
+                await _trigger_routing(complaint_id, payload)
             else:
-                # Only route if location is already pinned; otherwise wait for stage_1_intake.
-                loc = await _redis.get(f"complaint:{complaint_id}:location")
-                if loc:
-                    await _trigger_routing(complaint_id, payload)
-                else:
-                    # Store classification payload so stage_1_intake can trigger routing.
-                    await _redis.set(f"complaint:{complaint_id}:pending_route", json.dumps(payload), ex=86400)
+                await _redis.set(f"complaint:{complaint_id}:pending_route", json.dumps(payload), ex=86400)
         elif stage == "stage_1_intake" and status == "completed":
             # Location just confirmed — if classification already ran, trigger routing now.
             pending = await _redis.get(f"complaint:{complaint_id}:pending_route")
@@ -522,6 +682,10 @@ async def _orchestrator_loop():
                 await _redis.delete(f"complaint:{complaint_id}:pending_route")
                 await _trigger_routing(complaint_id, json.loads(pending))
         elif stage == "stage_5_route" and status == "completed":
+            # Cache routing payload immediately in orchestrator — don't wait for persistence loop.
+            # Eliminates race condition where _trigger_field_collection runs before persistence
+            # loop stores complaint:{id}:routing in Redis.
+            await _redis.set(f"complaint:{complaint_id}:routing", json.dumps(payload), ex=86400)
             await _run_dedup(complaint_id)
         elif stage == "stage_7_dedup" and status == "completed":
             await _trigger_field_collection(complaint_id, payload)
@@ -563,7 +727,10 @@ async def _persistence_loop():
                     )
                     existing_pd = existing or {}
                     nlu_text = existing_pd.get("nlu", {}).get("text_normalized", "")
-                    embedding = embed(nlu_text) if nlu_text else None
+                    # Run blocking SBERT inference in a thread pool — keeps the event loop free
+                    # during the first model load (~15s) and subsequent encode() calls.
+                    loop = asyncio.get_event_loop()
+                    embedding = await loop.run_in_executor(None, embed, nlu_text) if nlu_text else None
                     if embedding:
                         await conn.execute(
                             "UPDATE complaints "
@@ -614,16 +781,69 @@ async def _persistence_loop():
                         cid, {"portal_fields": portal_fields},
                     )
                 elif stage == "stage_8_submit":
-                    await _redis.set(f"complaint:{cid}:submission", json.dumps(payload), ex=86400)
-                    ticket = payload.get("portal_ticket_id")
-                    await conn.execute(
-                        "UPDATE complaints SET ticket_id = COALESCE($2, ticket_id), "
-                        "status = 'submitted', "
-                        "pipeline_data = pipeline_data || $3, updated_at = NOW() "
-                        "WHERE complaint_id = $1",
-                        cid, ticket, {"submission": payload},
-                    )
-                    await log_event(cid, "submit_success", {"ticket_id": ticket, "portal_id": payload.get("portal_id")})
+                    status_val = event.get("status", "")
+                    # Only cache + persist on completed (not started) to avoid overwriting good data
+                    if status_val == "completed" and payload.get("portal_ticket_id"):
+                        await _redis.set(f"complaint:{cid}:submission", json.dumps(payload), ex=86400)
+                        ticket = payload.get("portal_ticket_id")
+                        await conn.execute(
+                            "UPDATE complaints SET ticket_id = COALESCE($2, ticket_id), "
+                            "status = 'submitted', "
+                            "pipeline_data = pipeline_data || $3, updated_at = NOW() "
+                            "WHERE complaint_id = $1",
+                            cid, ticket, {"submission": payload},
+                        )
+                        await log_event(cid, "submit_success", {"ticket_id": ticket, "portal_id": payload.get("portal_id")})
+                        # Re-publish to the complaint-specific WS channel so frontend always gets it
+                        ws_event = json.dumps({"stage": "stage_8_submit", "status": "completed", "payload": payload})
+                        await _redis.publish(f"pipeline:{cid}", ws_event)
+
+                    # ── Multi-domain reminder: notify user about pending domains ──
+                    try:
+                        l2_raw = await _redis.get(f"complaint:{cid}:layer2_slots")
+                        if l2_raw:
+                            l2_slots = json.loads(l2_raw)
+                            pending = l2_slots.get("pending_domains", [])
+                            if pending:
+                                _CAT_EN = {
+                                "Electricity": "Bijli/Electricity",
+                                "Water Supply": "Paani/Water",
+                                "Roads & Transportation": "Sadak/Roads",
+                                "Waste Management": "Safai/Sanitation",
+                                "Health & Family Welfare": "Health",
+                                "Police": "Police",
+                                "Education (Higher / School)": "Education",
+                                "Housing & Urban Affairs": "Housing",
+                                "Agriculture & Farmers Welfare": "Agriculture",
+                                "Banking (DFS)": "Banking",
+                                "Aadhaar (UIDAI)": "Aadhaar",
+                                "Pension & Pensioners Welfare": "Pension",
+                                "Petroleum & LPG": "LPG/Gas",
+                                "Public Distribution (PDS)": "Ration",
+                                "Public Safety & Encroachment": "Noise/Nuisance",
+                                "Railways": "Railway",
+                                "Telecom": "Telecom",
+                                }
+                                filed_cat = l2_slots.get("category", "")
+                                filed_name = _CAT_EN.get(filed_cat, filed_cat)
+                                pending_names = " & ".join(_CAT_EN.get(c, c) for c in pending)
+                                ticket_str = ticket or cid[:8] + "..."
+                                reminder = (
+                                f"✅ Aapki {filed_name} shikayat darj ho gayi (Ticket: {ticket_str}).\n\n"
+                                f"Aapne {pending_names} ki samasya bhi bataayi thi. "
+                                f"Kripya 'New Complaint' button se use alag darj karein."
+                                )
+                                uid_row = await conn.fetchrow(
+                                    "SELECT user_id FROM complaints WHERE complaint_id=$1", cid
+                                )
+                                if uid_row:
+                                    await _http.post(
+                                        f"{CHATBOT_URL}/api/v1/session/notify",
+                                        json={"user_id": str(uid_row["user_id"]), "message": reminder},
+                                        timeout=5.0,
+                                    )
+                    except Exception as rem_e:
+                        logger.warning("multi-domain reminder failed: %s", rem_e)
                 elif stage == "stage_2_nlu":
                     await conn.execute(
                         "UPDATE complaints SET pipeline_data = pipeline_data || $2, "
@@ -666,6 +886,15 @@ async def _trigger_nlu(complaint_id: str, payload: dict):
             except Exception:
                 pass
 
+        # Store Layer 2 slots in Redis so classifier can use them as strong prior
+        slots = payload.get("slots", {})
+        if slots:
+            await _redis.set(
+                f"complaint:{complaint_id}:layer2_slots",
+                json.dumps(slots),
+                ex=86400,
+            )
+
         await _http.post(
             f"{NLU_URL}/api/v1/process",
             json={
@@ -681,6 +910,48 @@ async def _trigger_nlu(complaint_id: str, payload: dict):
 
 async def _trigger_classifier(complaint_id: str, payload: dict):
     try:
+        # Inject Layer 2 confirmed category as a strong domain hint.
+        # Since the user explicitly selected/confirmed their complaint type in the
+        # guided conversation, Layer 2's category is more reliable than NLU keyword matching.
+        layer2_raw = await _redis.get(f"complaint:{complaint_id}:layer2_slots")
+        if layer2_raw:
+            slots = json.loads(layer2_raw)
+            layer2_cat = slots.get("category", "")
+            if layer2_cat:
+                # Prepend Layer 2 category to domain_hints so classifier uses it first
+                existing = payload.get("domain_hints", [])
+                # Map Layer 2 category name to the domain key used by classifier
+                cat_to_domain = {
+                    "Electricity": "electricity",
+                    "Water Supply": "water",
+                    "Roads & Transportation": "roads",
+                    "Waste Management": "waste",
+                    "Health & Family Welfare": "health",
+                    "Police": "police",
+                    "Education (Higher / School)": "education",
+                    "Housing & Urban Affairs": "housing",
+                    "Agriculture & Farmers Welfare": "agriculture",
+                    "Banking (DFS)": "banking",
+                    "Aadhaar (UIDAI)": "aadhaar",
+                    "Income Tax (CBDT)": "income_tax",
+                    "GST (CBIC)": "gst",
+                    "EPFO": "epfo",
+                    "Insurance (DFS)": "insurance",
+                    "Passport (MEA)": "passport",
+                    "Pension & Pensioners Welfare": "pension",
+                    "Petroleum & LPG": "lpg",
+                    "Postal": "postal",
+                    "Public Distribution (PDS)": "ration",
+                    "Public Safety & Encroachment": "safety",
+                    "RTO / State Transport": "transport",
+                    "Railways": "railway",
+                    "Telecom": "telecom",
+                }
+                domain = cat_to_domain.get(layer2_cat)
+                if domain and domain not in existing:
+                    payload = {**payload, "domain_hints": [domain] + existing}
+                payload = {**payload, "layer2_category": layer2_cat}
+
         await _http.post(
             f"{CLASSIFIER_URL}/api/v1/classify",
             json={"complaint_id": complaint_id, **payload},
@@ -818,12 +1089,16 @@ async def _trigger_submission(complaint_id: str, payload: dict, attempt: int = 0
         location = location["location"]
     nlu = pd.get("nlu", {})
 
+    routing = pd.get("routing", {})
+    portal_name = routing.get("portal_name", payload.get("portal_name", ""))
+
     uco_meta = {
         "complaint_text": nlu.get("text_normalized") or nlu.get("text_raw", ""),
         "department":     classification.get("department", ""),
         "sub_category":   classification.get("sub_category", ""),
         "district":       location.get("district", "") if isinstance(location, dict) else "",
         "user_id":        str(row["user_id"]),
+        "portal_name":    portal_name,  # used by generic adapter for ticket prefix
     }
 
     await log_event(complaint_id, "submit_attempt", {"portal_id": portal_id, "attempt": attempt})
@@ -834,6 +1109,7 @@ async def _trigger_submission(complaint_id: str, payload: dict, attempt: int = 0
             json={
                 "complaint_id":  complaint_id,
                 "portal_id":     portal_id,
+                "portal_name":   portal_name,
                 "portal_fields": portal_fields,
                 "uco_meta":      uco_meta,
             },
@@ -1161,63 +1437,107 @@ async def _trigger_field_collection(complaint_id: str, dedup_result: dict) -> No
 
 
 def _build_prefill(pipeline_data: dict, required_fields: list[str]) -> dict:
-    """Map NER entities + location into portal field names that we already know.
+    """Map all collected data into portal field names.
 
-    Uses keyword matching against the field label so it works across all portals
-    without per-portal config.
+    Sources (in priority order):
+    1. NER entities — aadhaar, phone, email extracted from conversation
+    2. GPS location — address, district, state, pincode from map pin
+    3. Classification — department, sub_category as "type of complaint"
+    4. Complaint text — normalized description prefills "description" fields
+    5. Conversation slots — duration/date from Layer 2 conversation
     """
     pre: dict[str, str] = {}
-    entities = pipeline_data.get("nlu", {}).get("entities", {})
-    location  = pipeline_data.get("location", {})
+    nlu        = pipeline_data.get("nlu", {})
+    entities   = nlu.get("entities", {})
+    location   = pipeline_data.get("location", {})
+    clf        = pipeline_data.get("classification", {})
+
     if isinstance(location, dict) and "location" in location:
-        location = location["location"]   # unwrap nested {"location": {...}}
+        location = location["location"]
 
-    # ── entity → field label keyword mapping ─────────────────────────────
-    ENTITY_RULES: list[tuple[str, list[str], str]] = [
-        # (entity_key, keywords_to_match_in_field_name, value_transform)
-        ("phone",       ["mobile", "phone", "contact number"],  "first"),
-        ("email",       ["email"],                              "first"),
-        ("aadhaar",     ["aadhaar"],                            "last4_if_4digit_field"),
-        ("consumer_no", ["consumer number", "ivrs", "consumer no", "connection number"], "first"),
-        ("account_no",  ["bank account", "account number"],     "first"),
-        ("vehicle_no",  ["vehicle number", "vehicle no", "rc number"], "first"),
+    # ── 1. NER entity → field mapping ────────────────────────────────────
+    ENTITY_RULES = [
+        ("phone",       ["mobile", "phone", "contact number", "mobile number"],  "first"),
+        ("email",       ["email"],                                               "first"),
+        ("aadhaar",     ["aadhaar", "aadhar"],                                   "last4_if_4digit_field"),
+        ("consumer_no", ["consumer number", "ivrs", "consumer no"],              "first"),
+        ("account_no",  ["bank account", "account number"],                      "first"),
+        ("vehicle_no",  ["vehicle number", "vehicle no", "rc number"],           "first"),
     ]
-
     for entity_key, keywords, transform in ENTITY_RULES:
         values = entities.get(entity_key, [])
         if not values:
             continue
         raw_value = values[0]
-
         for field_name in required_fields:
-            field_lower = field_name.lower()
-            if any(kw in field_lower for kw in keywords):
-                if field_name in pre:
-                    continue
-                if transform == "last4_if_4digit_field" and "last 4" in field_lower:
+            fl = field_name.lower()
+            if any(kw in fl for kw in keywords) and field_name not in pre:
+                if transform == "last4_if_4digit_field" and "last 4" in fl:
                     pre[field_name] = raw_value[-4:] if len(raw_value) >= 4 else raw_value
                 else:
                     pre[field_name] = raw_value
 
-    # ── location fields ───────────────────────────────────────────────────
-    LOC_RULES: list[tuple[str, list[str]]] = [
-        ("address_text", ["full address", "address of connection", "address"]),
-        ("pincode",      ["pincode", "pin code"]),
-        ("district",     ["district"]),
-        ("state",        ["state"]),
+    # ── 2. Location fields ────────────────────────────────────────────────
+    addr_text = location.get("address_text", "") if isinstance(location, dict) else ""
+    LOC_RULES = [
+        (addr_text,                  ["address", "full address", "address of connection",
+                                      "location", "incident location", "place of incident",
+                                      "incident place", "complaint location"]),
+        (location.get("pincode", "") if isinstance(location, dict) else "", ["pincode", "pin code"]),
+        (location.get("district", "") if isinstance(location, dict) else "", ["district"]),
+        (location.get("state", "")   if isinstance(location, dict) else "", ["state"]),
+        (location.get("ward", "")    if isinstance(location, dict) else "", ["ward"]),
     ]
-    for loc_key, keywords in LOC_RULES:
-        value = location.get(loc_key, "") if isinstance(location, dict) else ""
+    for value, keywords in LOC_RULES:
         if not value:
             continue
         for field_name in required_fields:
-            field_lower = field_name.lower()
-            if any(kw in field_lower for kw in keywords):
+            fl = field_name.lower()
+            if any(kw in fl for kw in keywords) and field_name not in pre:
+                pre[field_name] = value
+
+    # ── 3. Classification → "type of complaint" / "nature of complaint" ──
+    sub_cat = clf.get("sub_category", "") or clf.get("department", "")
+    if sub_cat:
+        for field_name in required_fields:
+            fl = field_name.lower()
+            if any(kw in fl for kw in ["type of complaint", "nature of complaint",
+                                        "complaint type", "category", "complaint category"]):
                 if field_name not in pre:
-                    pre[field_name] = value
+                    pre[field_name] = sub_cat
+
+    # ── 4. Complaint description → "description" / "grievance" fields ────
+    # Prefer text_en (Layer 3 clean English) over raw normalized text
+    complaint_text = (
+        nlu.get("text_en") or
+        nlu.get("text_normalized") or
+        nlu.get("text_raw") or ""
+    ).strip()
+    # Remove internal tags like "[WATER_SUPPLY]" from the description
+    import re as _re
+    complaint_text = _re.sub(r"^\[[A-Z_&/ ]+\]\s*", "", complaint_text)
+    if complaint_text:
+        for field_name in required_fields:
+            fl = field_name.lower()
+            if any(kw in fl for kw in ["description", "grievance description",
+                                        "complaint description", "issue description",
+                                        "detail", "incident description",
+                                        "describe", "grievance"]):
+                if field_name not in pre:
+                    pre[field_name] = complaint_text[:500]
+
+    # ── 5. Date/time fields — use today's date as fallback ───────────────
+    from datetime import datetime as _dt
+    today = _dt.now().strftime("%d-%m-%Y")
+    for field_name in required_fields:
+        fl = field_name.lower()
+        if any(kw in fl for kw in ["date", "date and time", "incident date",
+                                    "time of incident"]):
+            if field_name not in pre:
+                pre[field_name] = today
 
     if pre:
-        logger.info("pre-fill: %d/%d fields resolved from NER/location: %s",
+        logger.info("pre-fill: %d/%d fields resolved: %s",
                     len(pre), len(required_fields), list(pre.keys()))
     return pre
 
@@ -1259,195 +1579,6 @@ async def _feedback_loop():
             logger.info("feedback ask sent for complaint %s", complaint_id)
         except Exception as e:
             logger.warning("feedback_loop error: %s", e)
-
-
-# ── Admin / Government Dashboard endpoints ──────────────────────────────
-
-@app.get("/api/v1/admin/stats")
-async def admin_stats(_uid: str = Depends(auth.get_current_user_id)):
-    async with db.pool().acquire() as conn:
-        total = await conn.fetchval("SELECT COUNT(*) FROM complaints")
-        by_status = await conn.fetch(
-            "SELECT status, COUNT(*)::int AS count FROM complaints GROUP BY status ORDER BY count DESC"
-        )
-        by_dept = await conn.fetch(
-            "SELECT department, COUNT(*)::int AS count FROM complaints WHERE department IS NOT NULL "
-            "GROUP BY department ORDER BY count DESC LIMIT 15"
-        )
-        by_dist = await conn.fetch(
-            "SELECT district, COUNT(*)::int AS count FROM complaints WHERE district IS NOT NULL "
-            "GROUP BY district ORDER BY count DESC LIMIT 15"
-        )
-        dup_count = await conn.fetchval(
-            "SELECT COUNT(DISTINCT complaint_id) FROM complaints WHERE pipeline_data ? 'dedup' "
-            "AND (pipeline_data->'dedup'->>'is_duplicate')::boolean = true"
-        )
-        recent = await conn.fetch(
-            "SELECT c.complaint_id, c.summary, c.status, c.department, c.created_at "
-            "FROM complaints c ORDER BY c.created_at DESC LIMIT 10"
-        )
-    return {
-        "total_complaints": total,
-        "duplicate_complaints": dup_count or 0,
-        "by_status": [dict(r) for r in by_status],
-        "by_department": [dict(r) for r in by_dept],
-        "by_district": [dict(r) for r in by_dist],
-        "recent": [
-            {
-                "complaint_id": str(r["complaint_id"]),
-                "summary": r["summary"],
-                "status": r["status"],
-                "department": r["department"],
-                "created_at": int(r["created_at"].timestamp() * 1000),
-            }
-            for r in recent
-        ],
-    }
-
-
-@app.get("/api/v1/admin/portals")
-async def admin_portals(_uid: str = Depends(auth.get_current_user_id)):
-    r = await _http.get(f"{ROUTING_URL}/api/v1/portals")
-    portals = r.json()
-    # Enrich each portal with its complaint count from DB
-    async with db.pool().acquire() as conn:
-        counts = await conn.fetch(
-            "SELECT portal_id, COUNT(*)::int AS cnt FROM complaints "
-            "WHERE portal_id IS NOT NULL GROUP BY portal_id"
-        )
-    count_map = {r["portal_id"]: r["cnt"] for r in counts}
-    for p in portals:
-        p["complaint_count"] = count_map.get(p.get("portal_id", ""), 0)
-    return portals
-
-
-@app.get("/api/v1/admin/portals/{portal_id}")
-async def admin_portal_detail(portal_id: str, _uid: str = Depends(auth.get_current_user_id)):
-    r = await _http.get(f"{ROUTING_URL}/api/v1/portals/{portal_id}")
-    portal = r.json()
-    async with db.pool().acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT c.complaint_id, c.summary, c.status, c.department, c.sub_category, "
-            "c.district, c.ticket_id, c.created_at, c.updated_at, "
-            "u.name AS user_name, u.mobile AS user_mobile, "
-            "c.pipeline_data "
-            "FROM complaints c JOIN users u ON c.user_id = u.id "
-            "WHERE c.portal_id = $1 ORDER BY c.created_at DESC LIMIT 50",
-            portal_id,
-        )
-        total = await conn.fetchval(
-            "SELECT COUNT(*) FROM complaints WHERE portal_id = $1", portal_id
-        )
-    complaints = [_complaint_row(r) for r in rows]
-    return {"portal": portal, "complaints": complaints, "total": total}
-
-
-@app.get("/api/v1/admin/complaints")
-async def admin_complaints(
-    status: str = None,
-    department: str = None,
-    district: str = None,
-    limit: int = 50,
-    offset: int = 0,
-    _uid: str = Depends(auth.get_current_user_id),
-):
-    filters, params = [], []
-    if status:
-        params.append(status); filters.append(f"c.status = ${len(params)}")
-    if department:
-        params.append(department); filters.append(f"c.department = ${len(params)}")
-    if district:
-        params.append(district); filters.append(f"c.district = ${len(params)}")
-    where = ("WHERE " + " AND ".join(filters)) if filters else ""
-    params += [limit, offset]
-    async with db.pool().acquire() as conn:
-        rows = await conn.fetch(
-            f"SELECT c.complaint_id, c.summary, c.status, c.department, c.sub_category, "
-            f"c.district, c.portal_id, c.ticket_id, c.created_at, c.updated_at, "
-            f"u.name AS user_name, u.mobile AS user_mobile, c.pipeline_data "
-            f"FROM complaints c JOIN users u ON c.user_id = u.id {where} "
-            f"ORDER BY c.created_at DESC LIMIT ${len(params)-1} OFFSET ${len(params)}",
-            *params,
-        )
-        total = await conn.fetchval(
-            f"SELECT COUNT(*) FROM complaints c {where}", *params[:-2]
-        )
-    return {"complaints": [_complaint_row(r) for r in rows], "total": total}
-
-
-@app.get("/api/v1/admin/complaints/{complaint_id}")
-async def admin_complaint_detail(complaint_id: str, _uid: str = Depends(auth.get_current_user_id)):
-    async with db.pool().acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT c.*, u.name, u.mobile, u.email, u.district AS user_district "
-            "FROM complaints c JOIN users u ON c.user_id = u.id "
-            "WHERE c.complaint_id = $1", complaint_id
-        )
-        if not row:
-            raise HTTPException(404, "Complaint not found")
-        events = await conn.fetch(
-            "SELECT event_id, event_type, actor, details, event_hash, created_at "
-            "FROM complaint_events WHERE complaint_id = $1 ORDER BY created_at",
-            complaint_id,
-        )
-        # Dedup filers: other users who filed same complaint
-        dedup_data = (json.loads(row["pipeline_data"]) if isinstance(row["pipeline_data"], str) else (row["pipeline_data"] or {})).get("dedup") or {}
-    _pd_r = row["pipeline_data"] or {}
-    pd = json.loads(_pd_r) if isinstance(_pd_r, str) else _pd_r
-    return {
-        "complaint_id": str(row["complaint_id"]),
-        "summary": row["summary"],
-        "status": row["status"],
-        "department": row["department"],
-        "sub_category": row["sub_category"],
-        "district": row["district"],
-        "portal_id": row["portal_id"],
-        "ticket_id": row["ticket_id"],
-        "created_at": int(row["created_at"].timestamp() * 1000),
-        "updated_at": int(row["updated_at"].timestamp() * 1000),
-        "filer": {
-            "name": row["name"],
-            "mobile": row["mobile"],
-            "email": row["email"],
-            "district": row["user_district"],
-        },
-        "pipeline": pd,
-        "routing_explanation": pd.get("routing"),
-        "dedup": dedup_data,
-        "audit_chain": [
-            {
-                "event_id": str(e["event_id"]),
-                "event_type": e["event_type"],
-                "actor": e["actor"],
-                "details": e["details"],
-                "event_hash": e["event_hash"],
-                "created_at": e["created_at"].isoformat(),
-            }
-            for e in events
-        ],
-    }
-
-
-def _complaint_row(r) -> dict:
-    pd = r["pipeline_data"] or {}
-    return {
-        "complaint_id": str(r["complaint_id"]),
-        "summary": r["summary"],
-        "status": r["status"],
-        "department": r["department"],
-        "sub_category": r.get("sub_category"),
-        "district": r.get("district"),
-        "portal_id": r.get("portal_id"),
-        "ticket_id": r.get("ticket_id"),
-        "user_name": r["user_name"],
-        "user_mobile": r.get("user_mobile"),
-        "priority": (pd.get("classification") or {}).get("priority"),
-        "sentiment": (pd.get("classification") or {}).get("sentiment"),
-        "is_duplicate": (pd.get("dedup") or {}).get("is_duplicate", False),
-        "duplicate_count": (pd.get("dedup") or {}).get("duplicate_count", 0),
-        "created_at": int(r["created_at"].timestamp() * 1000),
-        "updated_at": int(r.get("updated_at", r["created_at"]).timestamp() * 1000),
-    }
 
 
 async def _publish_dedup(complaint_id: str, payload: dict) -> None:

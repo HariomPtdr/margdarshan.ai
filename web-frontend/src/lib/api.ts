@@ -165,6 +165,36 @@ export async function adminComplaintDetail(id: string): Promise<AdminComplaintDe
   return handle(r);
 }
 
+// ── Admin write endpoints ───────────────────────────────────────────────
+
+export interface ReviewPayload {
+  classification_correct?: boolean;
+  correct_department?: string;
+  correct_sub_category?: string;
+  correct_priority?: string;
+  sentiment_correct?: boolean;
+  reviewer_notes?: string;
+  rating: "positive" | "negative";
+}
+
+export async function reviewComplaint(id: string, payload: ReviewPayload): Promise<void> {
+  const r = await fetch(`${GATEWAY}/api/v1/admin/complaints/${id}/review`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  await handle<{ status: string }>(r);
+}
+
+export async function updateComplaintStatus(id: string, status: string): Promise<void> {
+  const r = await fetch(`${GATEWAY}/api/v1/admin/complaints/${id}/status`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ status }),
+  });
+  await handle<{ status: string }>(r);
+}
+
 // ── WebSocket ───────────────────────────────────────────────────────────
 
 export function pipelineWebSocket(complaint_id: string): WebSocket {

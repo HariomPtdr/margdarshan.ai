@@ -57,3 +57,5 @@ class ChatResponse(BaseModel):
     state: StateEnum
     needs_location_pin: bool = False
     pipeline_triggered: bool = False
+    complaint_buffer: str = ""   # structured description — passed to gateway for pipeline event
+    language: str = "hinglish"   # detected language

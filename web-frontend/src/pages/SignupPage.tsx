@@ -2,294 +2,189 @@ import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import type { RegisterPayload } from "../lib/types";
 
-interface Props {
-  onSwitchToLogin: () => void;
-}
-
-const INDIAN_STATES = [
-  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
-  "Delhi", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand",
-  "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur",
-  "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan",
-  "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh",
-  "Uttarakhand", "West Bengal",
+const STATES = [
+  "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Delhi","Goa","Gujarat",
+  "Haryana","Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Maharashtra",
+  "Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan","Sikkim",
+  "Tamil Nadu","Telangana","Tripura","Uttar Pradesh","Uttarakhand","West Bengal",
 ];
+
+interface Props { onSwitchToLogin: () => void; }
 
 export function SignupPage({ onSwitchToLogin }: Props) {
   const { register } = useAuth();
   const [form, setForm] = useState<RegisterPayload>({
-    name: "",
-    gender: "",
-    address: "",
-    sub_locality: "",
-    locality: "",
-    country: "India",
-    state: "",
-    district: "",
-    pincode: "",
-    mobile: "",
-    phone: "",
-    email: "",
-    password: "",
+    name:"", gender:"", address:"", sub_locality:"", locality:"",
+    country:"India", state:"", district:"", pincode:"",
+    mobile:"", phone:"", email:"", password:"",
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const set = <K extends keyof RegisterPayload>(k: K, v: RegisterPayload[K]) =>
-    setForm((f) => ({ ...f, [k]: v }));
+    setForm(f => ({ ...f, [k]: v }));
 
   const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (form.password.length < 6) {
-      setError("Password must be at least 6 characters");
-      return;
-    }
-    if (!/^\d{10}$/.test(form.mobile)) {
-      setError("Mobile must be 10 digits");
-      return;
-    }
+    e.preventDefault(); setError(null);
+    if (form.password.length < 6) { setError("Password must be at least 6 characters"); return; }
+    if (!/^\d{10}$/.test(form.mobile)) { setError("Mobile must be 10 digits"); return; }
     setSubmitting(true);
-    try {
-      await register(form);
-    } catch (err: any) {
-      setError(err.message || "Registration failed");
-    } finally {
-      setSubmitting(false);
-    }
+    try { await register(form); }
+    catch (err: any) { setError(err.message || "Registration failed"); }
+    finally { setSubmitting(false); }
   };
 
+  const F = { fontFamily:"'Inter',sans-serif" };
+  const I: React.CSSProperties = {
+    width:"100%", padding:"11px 14px", borderRadius:10,
+    border:"1px solid rgba(0,0,0,0.09)", background:"rgba(255,255,255,0.85)",
+    fontSize:"0.85rem", color:"#111827", outline:"none", ...F, boxSizing:"border-box" as any,
+  };
+  const S: React.CSSProperties = { ...I };
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-[#5a1f3d] text-white px-6 py-3">
-        <div className="max-w-5xl mx-auto flex items-center gap-4">
-          <div className="text-sm">
-            <div>भारत सरकार</div>
-            <div className="text-xs opacity-90">Government of India</div>
+    <div style={{ minHeight:"100vh", background:"linear-gradient(135deg, #EDF2F7 0%, #F0F4F9 50%, #EBF0F7 100%)", ...F, display:"flex", flexDirection:"column", position:"relative", overflow:"hidden" }}>
+      {/* Subtle orbs */}
+      <div style={{ position:"absolute", width:500, height:500, top:"-10%", right:"-5%", borderRadius:"50%", background:"radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 70%)", filter:"blur(60px)", pointerEvents:"none" }} />
+      <div style={{ position:"absolute", width:400, height:400, bottom:"-5%", left:"-8%", borderRadius:"50%", background:"radial-gradient(circle, rgba(16,185,129,0.05) 0%, transparent 70%)", filter:"blur(60px)", pointerEvents:"none" }} />
+
+      {/* Nav */}
+      <nav style={{ position:"relative", zIndex:10, display:"flex", justifyContent:"space-between", alignItems:"center", padding:"22px 48px", background:"rgba(255,255,255,0.6)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", borderBottom:"1px solid rgba(0,0,0,0.06)" }}>
+        <span style={{ fontSize:"1.05rem", fontWeight:700, color:"#111827", letterSpacing:"-0.03em" }}>Margdarshan.ai</span>
+        <button onClick={onSwitchToLogin}
+          style={{ padding:"7px 20px", borderRadius:999, border:"none", background:"#202A36", color:"white", fontSize:"0.78rem", fontWeight:600, cursor:"pointer", ...F, boxShadow:"0 2px 8px rgba(32,42,54,0.2)" }}>
+          Sign In
+        </button>
+      </nav>
+
+      {/* Form */}
+      <div style={{ flex:1, display:"flex", justifyContent:"center", padding:"32px 24px 48px", position:"relative", zIndex:5, overflowY:"auto" }}>
+        <div style={{ width:"100%", maxWidth:640 }}>
+          {/* Heading */}
+          <div style={{ marginBottom:32 }}>
+            <p style={{ fontSize:"0.65rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"2px", color:"#9CA3AF", margin:"0 0 10px" }}>CREATE ACCOUNT</p>
+            <h1 style={{ margin:0, letterSpacing:"-0.04em", lineHeight:0.9 }}>
+              <span style={{ display:"block", fontSize:"clamp(2rem,5vw,3.5rem)", fontWeight:500, color:"rgba(17,24,39,0.25)" }}>Join.</span>
+              <span style={{ display:"block", fontSize:"clamp(2rem,5vw,3.5rem)", fontWeight:700, color:"#111827", marginTop:"-0.05em" }}>File. Track.</span>
+            </h1>
           </div>
-          <div className="text-sm border-l border-white/40 pl-4">
-            <div>कार्मिक, लोक शिकायत और पेंशन मंत्रालय</div>
-            <div className="text-xs opacity-90">Ministry of Personnel, Public Grievances &amp; Pensions</div>
-          </div>
-        </div>
-      </header>
 
-      <main className="flex-1 max-w-5xl mx-auto w-full p-4 md:p-8">
-        <div className="bg-white border border-gray-200 rounded-lg shadow">
-          <div className="px-6 py-3 bg-gray-100 border-b border-gray-200">
-            <h2 className="text-base font-semibold text-gray-700">Registration / Sign up Form</h2>
-          </div>
+          {/* Glass form card */}
+          <div style={{ background:"rgba(255,255,255,0.75)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", borderRadius:20, border:"1px solid rgba(0,0,0,0.07)", boxShadow:"0 8px 32px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.9)", padding:"28px 28px 24px" }}>
+            <form onSubmit={onSubmit} style={{ display:"flex", flexDirection:"column", gap:0 }}>
 
-          <form onSubmit={onSubmit} className="p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-[#5a1f3d] font-semibold">Enter Details</h3>
-              <p className="text-sm text-gray-600">
-                Fields marked with <span className="text-red-600">*</span> are mandatory
-              </p>
-            </div>
+              <Sec label="Personal Details">
+                <Row2>
+                  <F2 label="Full Name" required>
+                    <input style={I} type="text" required value={form.name} placeholder="Your full name" onChange={e => set("name", e.target.value)} onFocus={focus} onBlur={blur} />
+                  </F2>
+                  <F2 label="Gender" required>
+                    <div style={{ display:"flex", gap:16, paddingTop:10 }}>
+                      {["Male","Female","Transgender"].map(g => (
+                        <label key={g} style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", fontSize:"0.82rem", color:"#374151", fontWeight:500 }}>
+                          <input type="radio" name="gender" value={g} checked={form.gender===g} onChange={e => set("gender",e.target.value)} required style={{ accentColor:"#202A36" }} />
+                          {g}
+                        </label>
+                      ))}
+                    </div>
+                  </F2>
+                </Row2>
+              </Sec>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-              {/* Left column */}
-              <Field label="Name" required>
-                <input
-                  type="text"
-                  required
-                  value={form.name}
-                  onChange={(e) => set("name", e.target.value)}
-                  className={inputCls}
-                />
-              </Field>
+              <Sec label="Contact">
+                <Row2>
+                  <F2 label="Mobile" required>
+                    <input style={I} type="tel" required pattern="\d{10}" maxLength={10} value={form.mobile} placeholder="10-digit mobile" onChange={e => set("mobile",e.target.value)} onFocus={focus} onBlur={blur} />
+                  </F2>
+                  <F2 label="Email" required>
+                    <input style={I} type="email" required value={form.email} placeholder="you@example.com" onChange={e => set("email",e.target.value)} onFocus={focus} onBlur={blur} />
+                  </F2>
+                </Row2>
+              </Sec>
 
-              {/* Right column - gender */}
-              <Field label="Gender" required>
-                <div className="flex gap-6 px-3 py-2">
-                  {["Male", "Female", "Transgender"].map((g) => (
-                    <label key={g} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="gender"
-                        value={g}
-                        checked={form.gender === g}
-                        onChange={(e) => set("gender", e.target.value)}
-                        required
-                      />
-                      <span className="text-sm font-semibold">{g}</span>
-                    </label>
-                  ))}
-                </div>
-              </Field>
+              <Sec label="Address">
+                <Row2>
+                  <F2 label="Street Address" required>
+                    <input style={I} type="text" required value={form.address||""} placeholder="House / Building / Street" onChange={e => set("address",e.target.value)} onFocus={focus} onBlur={blur} />
+                  </F2>
+                  <F2 label="Locality">
+                    <input style={I} type="text" value={form.locality||""} placeholder="Locality / Colony" onChange={e => set("locality",e.target.value)} onFocus={focus} onBlur={blur} />
+                  </F2>
+                  <F2 label="State" required>
+                    <select style={S} required value={form.state||""} onChange={e => set("state",e.target.value)} onFocus={focus} onBlur={blur}>
+                      <option value="">Select state</option>
+                      {STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </F2>
+                  <F2 label="District" required>
+                    <input style={I} type="text" required value={form.district||""} placeholder="District" onChange={e => set("district",e.target.value)} onFocus={focus} onBlur={blur} />
+                  </F2>
+                  <F2 label="Pincode">
+                    <input style={I} type="text" pattern="\d{6}" maxLength={6} value={form.pincode||""} placeholder="6-digit pincode" onChange={e => set("pincode",e.target.value)} onFocus={focus} onBlur={blur} />
+                  </F2>
+                </Row2>
+              </Sec>
 
-              <Field label="Address" required>
-                <input
-                  type="text"
-                  required
-                  placeholder="Premise Number or Name"
-                  value={form.address || ""}
-                  onChange={(e) => set("address", e.target.value)}
-                  className={inputCls}
-                />
-              </Field>
+              <Sec label="Security">
+                <Row2>
+                  <F2 label="Password" required>
+                    <input style={I} type="password" required minLength={6} value={form.password} placeholder="At least 6 characters" onChange={e => set("password",e.target.value)} onFocus={focus} onBlur={blur} />
+                  </F2>
+                </Row2>
+              </Sec>
 
-              <Field label="Sub-locality">
-                <input
-                  type="text"
-                  placeholder="Sub-locality"
-                  value={form.sub_locality || ""}
-                  onChange={(e) => set("sub_locality", e.target.value)}
-                  className={inputCls}
-                />
-              </Field>
+              {error && (
+                <div style={{ fontSize:"0.8rem", color:"#DC2626", background:"#FEF2F2", borderRadius:10, padding:"12px 16px", marginTop:4, border:"1px solid #FECACA" }}>{error}</div>
+              )}
 
-              <Field label="Locality">
-                <input
-                  type="text"
-                  placeholder="Locality"
-                  value={form.locality || ""}
-                  onChange={(e) => set("locality", e.target.value)}
-                  className={inputCls}
-                />
-              </Field>
-
-              <Field label="Country" required>
-                <select
-                  required
-                  value={form.country || "India"}
-                  onChange={(e) => set("country", e.target.value)}
-                  className={inputCls}
-                >
-                  <option value="India">India</option>
-                </select>
-              </Field>
-
-              <Field label="State" required>
-                <select
-                  required
-                  value={form.state || ""}
-                  onChange={(e) => set("state", e.target.value)}
-                  className={inputCls}
-                >
-                  <option value="">--Select a state--</option>
-                  {INDIAN_STATES.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label="District" required>
-                <input
-                  type="text"
-                  required
-                  placeholder="District"
-                  value={form.district || ""}
-                  onChange={(e) => set("district", e.target.value)}
-                  className={inputCls}
-                />
-              </Field>
-
-              <Field label="Pincode">
-                <input
-                  type="text"
-                  pattern="\d{6}"
-                  maxLength={6}
-                  placeholder="6-digit pincode"
-                  value={form.pincode || ""}
-                  onChange={(e) => set("pincode", e.target.value)}
-                  className={inputCls}
-                />
-              </Field>
-
-              <Field label="Mobile number" required>
-                <input
-                  type="tel"
-                  required
-                  pattern="\d{10}"
-                  maxLength={10}
-                  placeholder="10-digit mobile"
-                  value={form.mobile}
-                  onChange={(e) => set("mobile", e.target.value)}
-                  className={inputCls}
-                />
-              </Field>
-
-              <Field label="Phone number">
-                <input
-                  type="text"
-                  placeholder="Phone number with STD code (e.g. 011XXXXXXX)"
-                  value={form.phone || ""}
-                  onChange={(e) => set("phone", e.target.value)}
-                  className={inputCls}
-                />
-              </Field>
-
-              <Field label="E-mail address" required>
-                <input
-                  type="email"
-                  required
-                  value={form.email}
-                  onChange={(e) => set("email", e.target.value)}
-                  className={inputCls}
-                />
-              </Field>
-
-              <Field label="Password" required>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  placeholder="At least 6 characters"
-                  value={form.password}
-                  onChange={(e) => set("password", e.target.value)}
-                  className={inputCls}
-                />
-              </Field>
-            </div>
-
-            {error && (
-              <div className="mt-4 text-sm text-red-700 bg-red-50 border border-red-200 p-3 rounded">
-                {error}
+              <div style={{ marginTop:24, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <button type="button" onClick={onSwitchToLogin}
+                  style={{ fontSize:"0.8rem", color:"#9CA3AF", background:"none", border:"none", cursor:"pointer", ...F, textDecoration:"underline" }}>
+                  Already registered? Sign in
+                </button>
+                <button type="submit" disabled={submitting}
+                  style={{ padding:"12px 32px", borderRadius:999, border:"none", background: submitting ? "#9CA3AF" : "#202A36", color:"white", fontSize:"0.88rem", fontWeight:700, cursor: submitting ? "default" : "pointer", ...F, letterSpacing:"-0.01em", boxShadow: submitting ? "none" : "0 4px 12px rgba(32,42,54,0.25)" }}>
+                  {submitting ? "Creating account…" : "Create Account →"}
+                </button>
               </div>
-            )}
-
-            <div className="mt-8 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={onSwitchToLogin}
-                className="text-sm text-[#5a1f3d] font-semibold hover:underline"
-              >
-                Already registered? Login
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-6 py-2.5 bg-[#1a3a8f] text-white font-semibold rounded hover:bg-[#15306e] disabled:opacity-50 flex items-center gap-2"
-              >
-                {submitting ? "Submitting..." : "💾 Submit"}
-              </button>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
-      </main>
+      </div>
+
+      {/* Footer */}
+      <div style={{ position:"relative", zIndex:5, textAlign:"center", padding:"0 24px 20px", fontSize:"0.65rem", color:"#9CA3AF" }}>
+        भारत सरकार · Government of India · Ministry of Personnel, Public Grievances &amp; Pensions
+      </div>
     </div>
   );
 }
 
-const inputCls =
-  "w-full px-3 py-2 bg-white border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-saffron text-sm";
+function focus(e: React.FocusEvent<HTMLInputElement|HTMLSelectElement>) {
+  e.target.style.borderColor = "rgba(32,42,54,0.35)";
+}
+function blur(e: React.FocusEvent<HTMLInputElement|HTMLSelectElement>) {
+  e.target.style.borderColor = "rgba(0,0,0,0.09)";
+}
 
-function Field({
-  label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
+function Sec({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom:24 }}>
+      <p style={{ fontSize:"0.6rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"1.2px", color:"#9CA3AF", marginBottom:14, borderTop:"1px solid rgba(0,0,0,0.06)", paddingTop:18 }}>{label}</p>
+      {children}
+    </div>
+  );
+}
+
+function Row2({ children }: { children: React.ReactNode }) {
+  return <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>{children}</div>;
+}
+
+function F2({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-sm font-semibold text-gray-800 mb-1">
-        {label}
-        {required && <span className="text-red-600"> *</span>}
+      <label style={{ display:"block", fontSize:"0.68rem", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.8px", color:"#6B7280", marginBottom:6 }}>
+        {label}{required && <span style={{ color:"#EF4444", marginLeft:3 }}>*</span>}
       </label>
       {children}
     </div>
