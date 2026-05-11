@@ -29,3 +29,5 @@ service-classifier/model/embeddings_cache.npy
 # IDE
 .vscode/
 .idea/
+dataset/form/credentials.json
+dataset/form/token.json
