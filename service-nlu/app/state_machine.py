@@ -100,9 +100,9 @@ NOT_COMPLAINT_REDIRECT = {
 
 _T = {
     "greeting": {
-        "en":       "Hello! I'm Shikayat Saathi, your government complaint assistant. What is your issue?",
-        "hi":       "नमस्ते! मैं शिकायत साथी हूँ — सरकारी शिकायत दर्ज करने में आपकी मदद करूँगा। आपकी क्या समस्या है?",
-        "hinglish": "Namaste! Main Shikayat Saathi hoon — aapki sarkari shikayat darj karne mein madad karunga. Aapki kya samasya hai?",
+        "en":       "Hello! I'm Margdarshan.ai, your government complaint assistant. What is your issue?",
+        "hi":       "नमस्ते! मैं Margdarshan.ai हूँ — सरकारी शिकायत दर्ज करने में आपकी मदद करूँगा। आपकी क्या समस्या है?",
+        "hinglish": "Namaste! Main Margdarshan.ai hoon — aapki sarkari shikayat darj karne mein madad karunga. Aapki kya samasya hai?",
     },
     "ask_category": {
         "en":       "Please select the type of complaint:",

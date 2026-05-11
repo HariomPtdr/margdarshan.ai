@@ -1,4 +1,4 @@
-"""Prompts for Shikayat Saathi.
+"""Prompts for Margdarshan.ai.
 
 SYSTEM_PROMPT has been removed — the State Machine + NLU architecture no longer
 uses a monolithic LLM system prompt for conversation control.

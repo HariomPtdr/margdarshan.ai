@@ -414,7 +414,7 @@ async def _handle_post_submission_query(req: ChatRequest, session: Session) -> C
         resp = await chatbot.client.messages.create(
             model=config.CLAUDE_MODEL,
             max_tokens=300,
-            system=f"""You are Shikayat Saathi, an Indian govt complaint assistant.
+            system=f"""You are Margdarshan.ai, an Indian govt complaint assistant.
 The user has already SUBMITTED a complaint. Answer their query about their complaint.
 DO NOT start a new complaint flow. ONLY answer questions about the submitted complaint.
 

@@ -1,5 +1,5 @@
 /**
- * CoreFeatures — Marketing section for Shikayat Saathi login page.
+ * CoreFeatures — Marketing section for Margdarshan.ai login page.
  * Three gradient cards showcasing key capabilities.
  * Static only — no animations, no JS behavior.
  */
@@ -9,7 +9,7 @@ export function CoreFeatures() {
     <div className="c1-container">
       {/* Header */}
       <div className="c1-header">
-        <div className="c1-badge">SHIKAYAT SAATHI</div>
+        <div className="c1-badge">MARGDARSHAN.AI</div>
         <h1 className="c1-title">Built for Every Citizen</h1>
         <p className="c1-subtitle">
           File government complaints in seconds

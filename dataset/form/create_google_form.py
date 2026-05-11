@@ -1,6 +1,6 @@
 """
 create_google_form.py
-Programmatically creates the Shikayat Saathi complaint-dataset Google Form
+Programmatically creates the Margdarshan.ai complaint-dataset Google Form
 using the Google Forms API v1.
 
 Setup (one-time):
@@ -59,10 +59,10 @@ def get_credentials() -> Credentials:
 # Form definition
 # ---------------------------------------------------------------------------
 
-FORM_TITLE = "Shikayat Saathi — Real-World Complaint Dataset"
+FORM_TITLE = "Margdarshan.ai — Real-World Complaint Dataset"
 
 DESCRIPTION = (
-    "We are building an AI system (Shikayat Saathi) that automatically routes citizen "
+    "We are building an AI system (Margdarshan.ai) that automatically routes citizen "
     "complaints to the correct government department. To train it on real experiences, "
     "we need actual complaints people have faced.\n\n"
     "⏱ Takes 3–5 minutes  |  🔒 Completely anonymous — no name or contact needed.\n\n"

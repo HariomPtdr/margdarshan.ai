@@ -88,7 +88,7 @@ async def _reverse_locationiq(lat: float, lon: float) -> LocationData:
 async def _reverse_osm(lat: float, lon: float) -> LocationData:
     url = "https://nominatim.openstreetmap.org/reverse"
     params = {"lat": lat, "lon": lon, "format": "json", "addressdetails": 1}
-    headers = {"User-Agent": "shikayat-saathi/1.0"}
+    headers = {"User-Agent": "margdarshan-ai/1.0"}
     async with httpx.AsyncClient(timeout=8.0) as client:
         r = await client.get(url, params=params, headers=headers)
         if r.status_code != 200:

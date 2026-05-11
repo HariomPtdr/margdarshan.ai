@@ -10,7 +10,7 @@ import { adminStats } from "../lib/api";
 import { DashboardPage } from "./DashboardPage";
 
 const GATEWAY = import.meta.env.VITE_GATEWAY_URL || "http://localhost:8000";
-const ADMIN_TOKEN_KEY = "shikayat_admin_token";
+const ADMIN_TOKEN_KEY = "margdarshan_admin_token";
 
 function getAdminToken(): string | null {
   return sessionStorage.getItem(ADMIN_TOKEN_KEY);
@@ -223,7 +223,7 @@ export function AdminApp() {
   // (DashboardPage uses authHeaders() which reads localStorage token)
   // We use sessionStorage for admin but DashboardPage reads from localStorage.
   // Simplest: temporarily set localStorage token to admin token while on admin route.
-  localStorage.setItem("shikayat_token", token);
+  localStorage.setItem("margdarshan_token", token);
 
   return (
     <div className="h-full flex flex-col">

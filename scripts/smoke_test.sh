@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end smoke test for Shikayat Saathi.
+# End-to-end smoke test for Margdarshan.ai.
 # Requires stack to be up: docker compose up -d
 # Usage: bash scripts/smoke_test.sh
 
