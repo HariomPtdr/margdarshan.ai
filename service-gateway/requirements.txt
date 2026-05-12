@@ -12,3 +12,5 @@ asyncpg==0.29.0
 bcrypt==4.2.0
 PyJWT==2.9.0
 grievance-schema @ file:///shared-schema
+twilio==9.3.3
+python-multipart==0.0.12

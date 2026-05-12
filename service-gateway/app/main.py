@@ -19,6 +19,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from . import auth, db
 from .admin import router as admin_router, set_http_client as admin_set_http
+from .webhooks import router as webhooks_router
 from .audit import log_event
 from .embedder import embed, is_duplicate as sbert_is_duplicate, cosine_similarity, SIMILARITY_THRESHOLD
 
@@ -40,6 +41,7 @@ REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 app = FastAPI(title="service-gateway", version="2.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(admin_router)
+app.include_router(webhooks_router)
 
 
 # ── Demo Trace endpoint — shows full API exchange for a complaint ─────────────
@@ -173,12 +175,15 @@ async def _seed_admin():
                 logger.info("Promoted existing user %s to admin", admin_email)
         else:
             pwd_hash = auth.hash_password(admin_password)
-            await conn.execute(
-                "INSERT INTO users (name, email, mobile, password_hash, is_admin) "
-                "VALUES ($1,$2,$3,$4,true)",
-                "Admin", admin_email, admin_mobile, pwd_hash,
-            )
-            logger.info("Admin account created: %s", admin_email)
+            try:
+                await conn.execute(
+                    "INSERT INTO users (name, email, mobile, password_hash, is_admin) "
+                    "VALUES ($1,$2,$3,$4,true) ON CONFLICT (mobile) DO NOTHING",
+                    "Admin", admin_email, admin_mobile, pwd_hash,
+                )
+                logger.info("Admin account ensured: %s", admin_email)
+            except Exception as e:
+                logger.warning("admin seed skipped: %s", e)
 
 
 @app.on_event("shutdown")

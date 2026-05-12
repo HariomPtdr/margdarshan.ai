@@ -26,6 +26,10 @@ from pydantic import BaseModel
 
 from grievance_schema import PipelineEvent, StageEnum
 
+from .whatsapp import WhatsAppClient
+
+_wa = WhatsAppClient()
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -281,9 +285,9 @@ async def _notify_citizen(complaint_id: str, canonical: str, ticket_id: str):
             )
         if not row:
             return
-        msg = msgs[0].replace("{t}", ticket_id[:12])
-        masked = ("*" * (len(row["mobile"]) - 4) + row["mobile"][-4:]) if row["mobile"] else "****"
-        logger.info("[MOCK WhatsApp] → %s (%s): %s", masked, row["name"], msg)
-        # Production: await twilio.messages.create(to=f"whatsapp:{row['mobile']}", body=msg)
+        body_hi = msgs[0].replace("{t}", ticket_id[:12])
+        body_en = msgs[1].replace("{t}", ticket_id[:12])
+        msg = f"{body_hi}\n\n{body_en}"
+        await _wa.send(to=row["mobile"], body=msg)
     except Exception as e:
         logger.warning("notify_citizen failed: %s", e)

@@ -62,6 +62,8 @@ ALTER TABLE complaints ADD COLUMN IF NOT EXISTS district       TEXT;
 ALTER TABLE complaints ADD COLUMN IF NOT EXISTS portal_id      TEXT;
 -- S-BERT 384-dim embedding stored as a float8 array for cosine-similarity dedup.
 ALTER TABLE complaints ADD COLUMN IF NOT EXISTS text_embedding FLOAT8[];
+-- WhatsApp satisfaction reply: '1' = satisfied, '2' = reopen.
+ALTER TABLE complaints ADD COLUMN IF NOT EXISTS feedback_received TEXT;
 
 -- Covering index for the dedup query: dept + sub_cat + district, unresolved, recent.
 CREATE INDEX IF NOT EXISTS idx_complaints_dedup
