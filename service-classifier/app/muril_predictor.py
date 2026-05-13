@@ -12,7 +12,11 @@ from transformers import AutoModel, AutoTokenizer
 
 logger = logging.getLogger(__name__)
 
-MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "model")
+# MODEL_VERSION env var lets us flip between "model" (v1) and "model_v2"
+# without code changes — set in docker-compose or shell.
+MODEL_DIR = os.path.join(
+    os.path.dirname(__file__), "..", os.getenv("MODEL_VERSION", "model")
+)
 
 
 class MuRILPredictor:
@@ -22,6 +26,7 @@ class MuRILPredictor:
         self.muril = None
         self.classifiers: dict = {}
         self.encoders: dict = {}
+        self.scaler = None  # optional — only present in v2+
         self.meta: dict = {}
         self.device = "cpu"
 
@@ -29,6 +34,7 @@ class MuRILPredictor:
         meta_path = os.path.join(MODEL_DIR, "meta.json")
         clf_path = os.path.join(MODEL_DIR, "classifiers.pkl")
         enc_path = os.path.join(MODEL_DIR, "encoders.pkl")
+        scaler_path = os.path.join(MODEL_DIR, "scaler.pkl")
 
         if not all(os.path.exists(p) for p in [meta_path, clf_path, enc_path]):
             logger.warning("MuRIL model artifacts not found — falling back to rule-based classifier")
@@ -40,6 +46,10 @@ class MuRILPredictor:
             self.classifiers = pickle.load(f)
         with open(enc_path, "rb") as f:
             self.encoders = pickle.load(f)
+        if os.path.exists(scaler_path):
+            with open(scaler_path, "rb") as f:
+                self.scaler = pickle.load(f)
+            logger.info(f"Loaded StandardScaler from {scaler_path}")
 
         muril_name = self.meta.get("muril_model", "google/muril-base-cased")
         self.device = "mps" if torch.backends.mps.is_available() else "cpu"
@@ -73,6 +83,10 @@ class MuRILPredictor:
             return None  # caller falls back to rule-based
 
         emb = self._embed(text)
+        # v2 models were trained on standard-scaled embeddings; apply the same
+        # transform at inference. v1 has no scaler — skip in that case.
+        if self.scaler is not None:
+            emb = self.scaler.transform(emb).astype(np.float32)
         threshold = self.meta.get("confidence_threshold", 0.40)
 
         result = {}

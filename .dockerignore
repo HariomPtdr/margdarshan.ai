@@ -1,1 +1,5 @@
 service-classifier/model/embeddings_cache.npy
+# v2: keep only inference artifacts (meta.json, classifiers.pkl, encoders.pkl, scaler.pkl).
+# Exclude training data + cached embeddings + eval outputs from the image.
+service-classifier/model_v2/*.npy
+service-classifier/model_v2/*.csv

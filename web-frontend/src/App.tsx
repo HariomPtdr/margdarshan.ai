@@ -260,11 +260,14 @@ function MainApp() {
   );
 
   return (
-    <div className="h-full flex flex-col" style={{ background:"linear-gradient(135deg, #EDF2F7 0%, #F0F4F9 50%, #EBF0F7 100%)" }}>
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background:"linear-gradient(135deg, #EDF2F7 0%, #F0F4F9 50%, #EBF0F7 100%)" }}>
       <Header />
-      <main className="flex-1 grid grid-cols-12 overflow-hidden" style={{ gap:0 }}>
+      {/* min-h-0 lets the grid shrink below the natural height of its tallest child
+          (the LeftPanel complaint list). Without it, that list expands the grid row
+          and pushes the ChatPanel's input bar past the viewport with no way to scroll. */}
+      <main className="flex-1 grid grid-cols-12 overflow-hidden min-h-0" style={{ gap:0 }}>
         {/* Left panel */}
-        <div className="col-span-2 hidden md:block min-w-[180px]">
+        <div className="col-span-2 hidden md:block min-w-[180px] min-h-0 overflow-hidden">
           <LeftPanel
             complaints={complaints}
             activeId={chat.activeComplaintId}
@@ -274,7 +277,7 @@ function MainApp() {
         </div>
 
         {/* Chat */}
-        <div className="col-span-12 md:col-span-6 lg:col-span-6 overflow-hidden" style={{ borderRight:"1px solid rgba(255,255,255,0.07)" }}>
+        <div className="col-span-12 md:col-span-6 lg:col-span-6 overflow-hidden min-h-0" style={{ borderRight:"1px solid rgba(255,255,255,0.07)" }}>
           <ChatPanel
             messages={chat.messages}
             onSend={chat.send}
@@ -285,7 +288,7 @@ function MainApp() {
         </div>
 
         {/* Right panel */}
-        <div className="col-span-12 md:col-span-4 lg:col-span-4 overflow-hidden">
+        <div className="col-span-12 md:col-span-4 lg:col-span-4 overflow-hidden min-h-0">
           <RightPanel state={pipeline} hasActiveComplaint={!!chat.activeComplaintId} />
         </div>
       </main>

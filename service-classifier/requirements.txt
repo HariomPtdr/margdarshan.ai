@@ -5,6 +5,6 @@ pydantic==2.9.2
 python-dotenv==1.0.1
 torch==2.2.2
 transformers==4.40.0
-scikit-learn==1.4.2
+scikit-learn==1.6.1
 numpy==1.26.4
 grievance-schema @ file:///shared-schema

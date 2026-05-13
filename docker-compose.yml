@@ -74,10 +74,14 @@ services:
       dockerfile: service-classifier/Dockerfile
     ports: ["8004:8004"]
     env_file: .env
+    environment:
+      MODEL_VERSION: ${MODEL_VERSION:-model_v2}
     depends_on: [redis]
     volumes:
       - ${HOME}/.cache/huggingface:/root/.cache/huggingface
       - ./service-classifier/app:/app/app
+      - ./service-classifier/model:/app/model:ro
+      - ./service-classifier/model_v2:/app/model_v2:ro
 
   service-routing:
     build:

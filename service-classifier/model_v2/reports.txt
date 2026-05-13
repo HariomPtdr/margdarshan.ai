@@ -1,0 +1,179 @@
+
+============================================================
+DEPARTMENT
+============================================================
+                               precision    recall  f1-score   support
+
+              Aadhaar (UIDAI)       0.00      0.00      0.00         0
+Agriculture & Farmers Welfare       0.00      0.00      0.00         0
+                Banking (DFS)       0.00      0.00      0.00         0
+             Consumer Affairs       0.00      0.00      0.00         0
+                         EPFO       0.00      0.00      0.00         0
+  Education (Higher / School)       0.43      0.64      0.52        45
+                  Electricity       0.77      0.86      0.81       216
+                   GST (CBIC)       0.00      0.00      0.00         0
+      Health & Family Welfare       0.51      0.30      0.38        77
+      Housing & Urban Affairs       0.67      0.49      0.57       144
+            Income Tax (CBDT)       0.00      0.00      0.00         0
+              Insurance (DFS)       0.00      0.00      0.00         0
+               Passport (MEA)       0.00      0.00      0.00         0
+Pension & Pensioners' Welfare       0.00      0.00      0.00         0
+              Petroleum & LPG       0.00      0.00      0.00         0
+                       Police       0.48      0.45      0.46        86
+                       Postal       0.00      0.00      0.00         0
+    Public Distribution (PDS)       0.00      0.00      0.00         0
+ Public Safety & Encroachment       0.43      0.49      0.46        43
+        RTO / State Transport       0.00      0.00      0.00         0
+                     Railways       0.50      0.27      0.35        11
+       Roads & Transportation       0.73      0.84      0.78       669
+                      Telecom       0.00      0.00      0.00         0
+             Waste Management       0.85      0.82      0.84       541
+                 Water Supply       0.76      0.59      0.66       242
+
+                     accuracy                           0.73      2074
+                    macro avg       0.25      0.23      0.23      2074
+                 weighted avg       0.73      0.73      0.73      2074
+
+
+============================================================
+SUB_CATEGORY
+============================================================
+                                       precision    recall  f1-score   support
+
+                          ATM Failure       0.00      0.00      0.00         0
+                      Ambulance Delay       0.00      0.00      0.00         1
+               Animal & Organic Waste       0.00      0.00      0.00         0
+                      Arrears Payment       0.00      0.00      0.00         0
+                       Ayushman PMJAY       0.00      0.00      0.00         0
+                     Bill Discrepancy       0.00      0.00      0.00         0
+                         Bill Dispute       0.00      0.00      0.00         0
+                    Birth Certificate       0.00      0.00      0.00         0
+               Building Plan Approval       0.00      0.00      0.00         0
+                   CGHS Reimbursement       0.00      0.00      0.00         0
+                         Cancellation       0.00      0.00      0.00         0
+                      Challan Dispute       0.00      0.00      0.00         0
+                    Coach Cleanliness       0.00      0.00      0.00         0
+                  Counterfeit Product       0.00      0.00      0.00         0
+                          Cyber Fraud       0.00      0.00      0.00         0
+                   Disability Pension       0.00      0.00      0.00         0
+                       Domestic Issue       0.00      0.00      0.00         2
+                    Drainage & Sewage       0.86      0.63      0.73       192
+                      Driving Licence       0.00      0.00      0.00         0
+                    E-commerce Refund       0.00      0.00      0.00         0
+                     Employer Default       0.00      0.00      0.00         0
+                   Examination Result       0.00      0.00      0.00         0
+                     FIR Registration       0.50      0.40      0.44         5
+                       Family Pension       0.00      0.00      0.00         0
+                          Fire Safety       0.00      0.00      0.00         4
+Footpaths & Pedestrian Infrastructure       0.69      0.57      0.62       123
+                   Garbage Collection       0.00      0.00      0.00         4
+        Garbage Dumping & Black Spots       0.80      0.86      0.83       537
+                     Hospital Service       0.28      0.11      0.16        46
+                     Input Tax Credit       0.00      0.00      0.00         0
+                             KCC Loan       0.00      0.00      0.00         0
+                            LIC Claim       0.00      0.00      0.00         0
+     Lake & Public Space Encroachment       0.50      0.19      0.28        21
+         Land & Property Encroachment       0.28      0.42      0.33        12
+                        Lost Document       0.00      0.00      0.00         0
+                    Mandi Procurement       0.00      0.00      0.00         0
+                   Medical Negligence       0.00      0.00      0.00         0
+                        Meter Reading       0.00      0.00      0.00         0
+                         Mid-day Meal       0.00      0.00      0.00         0
+                        Misleading Ad       0.00      0.00      0.00         0
+              Mosquito & Pest Control       0.43      0.30      0.35        10
+                       New Connection       0.00      0.00      0.00         0
+                      New Issue Delay       0.00      0.00      0.00         0
+                      No Water Supply       0.65      0.70      0.68        37
+                       Notice Dispute       0.00      0.00      0.00         0
+                          PM SVANidhi       0.00      0.00      0.00         0
+                     PM-Kisan Payment       0.00      0.00      0.00         0
+                     PMAY Application       0.00      0.00      0.00         0
+                 PMFBY Crop Insurance       0.00      0.00      0.00         0
+                       PPO Correction       0.00      0.00      0.00         0
+                       Pension Credit       0.00      0.00      0.00         0
+                    Pension Disbursal       0.00      0.00      0.00         0
+                       Pension EPS-95       0.00      0.00      0.00         0
+                       Pipeline Burst       0.00      0.00      0.00         7
+                  Police Verification       0.00      0.00      0.00         0
+                Pollution Certificate       0.00      0.00      0.00         0
+                         Power Outage       0.68      0.62      0.65        34
+                         Property Tax       0.67      0.47      0.55       144
+                      Public Nuisance       0.55      0.64      0.59        64
+                       Public Toilets       0.67      0.24      0.35        17
+            Public Transport Services       0.00      0.00      0.00         1
+                    Quality Complaint       0.00      0.00      0.00         0
+                        RPF Complaint       0.00      0.00      0.00         0
+                    Ration Card Issue       0.00      0.00      0.00         0
+                         Refill Delay       0.00      0.00      0.00         0
+                         Refund Delay       0.00      0.00      0.00         0
+                         Registration       0.00      0.00      0.00         0
+                              Renewal       0.00      0.00      0.00         0
+                          Reservation       0.00      0.00      0.00         0
+               Road Damage & Potholes       0.62      0.83      0.71       449
+                       SIM Activation       0.00      0.00      0.00         0
+                     SPARSH Migration       0.00      0.00      0.00         0
+                    Scholarship Delay       0.00      0.00      0.00         0
+                     School Admission       0.37      0.49      0.42        45
+                   Service Deficiency       0.00      0.00      0.00         0
+                      Sewage Overflow       0.00      0.00      0.00         0
+                     Soil Health Card       0.00      0.00      0.00         0
+                     Speed Post Delay       0.00      0.00      0.00         0
+                        Stray Animals       0.00      0.00      0.00        11
+                         Streetlights       0.00      0.00      0.00         0
+       Streetlights & Public Lighting       0.72      0.85      0.78       171
+                              Subsidy       0.00      0.00      0.00         0
+              Surveillance & Policing       0.00      0.00      0.00         4
+                         TDS Mismatch       0.00      0.00      0.00         0
+                       Tanker Service       0.00      0.00      0.00         2
+                      Teacher Absence       0.00      0.00      0.00         0
+                        Ticket Refund       0.00      0.00      0.00         0
+                       Tower Coverage       0.00      0.00      0.00         0
+                        Trade Licence       0.00      0.00      0.00         0
+      Traffic Management & Violations       0.57      0.36      0.45        96
+                          Train Delay       0.50      0.36      0.42        11
+                    Transformer Fault       0.00      0.00      0.00        11
+                       UAN Activation       0.00      0.00      0.00         0
+            Unauthorized Construction       0.00      0.00      0.00         6
+                 University Marksheet       0.00      0.00      0.00         0
+                       Update Failure       0.00      0.00      0.00         0
+                          Vaccination       0.67      0.67      0.67         3
+                 Vehicle Registration       0.00      0.00      0.00         0
+                      Warranty Denied       0.00      0.00      0.00         0
+             Water Quality & Metering       0.00      0.00      0.00         4
+                   Weights & Measures       0.00      0.00      0.00         0
+                     Withdrawal Delay       0.00      0.00      0.00         0
+                     Wrong Tax Demand       0.00      0.00      0.00         0
+
+                             accuracy                           0.68      2074
+                            macro avg       0.11      0.09      0.10      2074
+                         weighted avg       0.67      0.68      0.66      2074
+
+
+============================================================
+PRIORITY
+============================================================
+              precision    recall  f1-score   support
+
+    Critical       0.50      0.32      0.39        73
+        High       0.00      0.00      0.00       320
+         Low       0.00      0.00      0.00         8
+         Med       0.82      0.99      0.90      1673
+
+    accuracy                           0.81      2074
+   macro avg       0.33      0.33      0.32      2074
+weighted avg       0.68      0.81      0.74      2074
+
+
+============================================================
+SENTIMENT
+============================================================
+              precision    recall  f1-score   support
+
+  Distressed       0.49      0.34      0.40       165
+  Frustrated       0.62      0.30      0.41       266
+     Neutral       0.85      0.95      0.90      1643
+
+    accuracy                           0.82      2074
+   macro avg       0.65      0.53      0.57      2074
+weighted avg       0.79      0.82      0.80      2074
+

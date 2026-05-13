@@ -20,8 +20,12 @@ dist/
 *.log
 /tmp/
 
-# Large ML artifacts — embeddings cache stays local
+# Large ML artifacts — embeddings cache + training data stay local
 service-classifier/model/embeddings_cache.npy
+# model_v2: only the 4 small inference files (meta.json, classifiers.pkl,
+# encoders.pkl, scaler.pkl) ship to git; training data + caches stay local
+service-classifier/model_v2/*.npy
+service-classifier/model_v2/*.csv
 
 # Docker build cache
 .docker/

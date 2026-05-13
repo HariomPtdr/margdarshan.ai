@@ -631,6 +631,20 @@ async def _orchestrator_loop():
         complaint_id = event.get("complaint_id")
         payload = event.get("payload", {})
 
+        # Per-event try/except — a malformed complaint_id (bad UUID, etc.) must
+        # not kill the loop; otherwise the whole orchestrator stops on first
+        # bad event and the pipeline stalls for every subsequent complaint.
+        try:
+            await _handle_orchestrator_event(stage, status, complaint_id, payload)
+        except Exception as e:
+            logger.warning(
+                "orchestrator: dropped event stage=%s cid=%s err=%s",
+                stage, complaint_id, e,
+            )
+        continue
+
+
+async def _handle_orchestrator_event(stage, status, complaint_id, payload):
         if stage == "stage_0_chat" and status == "completed":
             already_classified = await _redis.get(f"complaint:{complaint_id}:classification")
             awaiting_clarification = await _redis.get(f"complaint:{complaint_id}:awaiting_clarification")

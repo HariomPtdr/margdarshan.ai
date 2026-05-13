@@ -1,0 +1,26 @@
+{
+  "eligible": [
+    "Education (Higher / School)",
+    "Electricity",
+    "Health & Family Welfare",
+    "Housing & Urban Affairs",
+    "Police",
+    "Public Safety & Encroachment",
+    "Railways",
+    "Roads & Transportation",
+    "Waste Management",
+    "Water Supply"
+  ],
+  "ineligible": [
+    "Aadhaar (UIDAI)",
+    "Banking (DFS)",
+    "Income Tax (CBDT)",
+    "Insurance (DFS)",
+    "Passport (MEA)",
+    "Petroleum & LPG",
+    "Postal",
+    "Public Distribution (PDS)",
+    "RTO / State Transport",
+    "Telecom"
+  ]
+}
